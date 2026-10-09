@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SUNDAY AI - Voice & Vision</title>
+    <!-- Tailwind CSS (Design Framework) -->
+    <script src="https://jsdelivr.net"></script>
+    <style>
+        body { background-color: #08090c; color: #e2e8f0; font-family: 'Inter', sans-serif; }
+        .glass { background: rgba(15, 18, 28, 0.85); backdrop-filter: blur(16px); border: 1px solid rgba(255, 0, 0, 0.1); }
+        .glow-red { box-shadow: 0 0 15px rgba(239, 68, 68, 0.2); }
+    </style>
+</head>
+<body class="flex flex-col h-screen max-w-md mx-auto shadow-2xl relative overflow-hidden">
+
+    <!-- Header Banner -->
+    <div class="glass p-4 flex items-center justify-between border-b border-red-950/40 glow-red">
+        <div class="flex items-center gap-3">
+            <div class="w-3 h-3 rounded-full bg-red-600 animate-pulse"></div>
+            <div>
+                <h1 class="text-xl font-bold tracking-wider text-red-500">SUNDAY AI v3.0</h1>
+                <p class="text-xs text-gray-400">Voice, Vision & Trading Master</p>
+            </div>
+        </div>
+        <span class="text-[10px] glass px-2 py-1 rounded text-red-400 border-red-500/20 font-mono">🔊 Mode Active</span>
+    </div>
+
+    <!-- Chat Window -->
+    <div id="chat-box" class="flex-1 overflow-y-auto p-4 space-y-4 pb-32">
+        <div class="glass p-4 rounded-2xl max-w-[85%] border-l-4 border-red-600">
+            <p class="text-sm leading-relaxed font-semibold text-red-400">Yes, Boss! 🫡</p>
+            <p class="text-sm leading-relaxed mt-1 text-gray-300">SUNDAY AI online. Mai aapka secret dost hu. Mujhe trading chart ki photo bhejiye, mic daba kar Hinglish me boliye, ya chat kijiye. Mai bilkul aapki tarah bolkar samjhaunga!</p>
+        </div>
+    </div>
+
+    <!-- Image Upload Preview -->
+    <div id="image-preview-container" class="hidden absolute bottom-24 left-4 right-4 p-2 glass rounded-xl flex items-center gap-2">
+        <img id="image-preview" class="w-12 h-12 rounded-lg object-cover border border-red-500" src="" alt="Preview">
+        <span class="text-xs text-gray-400 flex-1 truncate">Chart Selected...</span>
+        <button onclick="clearImage()" class="text-red-500 text-xs px-2 py-1">Remove</button>
+    </div>
+
+    <!-- Disclaimer Bottom -->
+    <div class="absolute bottom-20 left-0 right-0 text-center px-4">
+        <p class="text-[10px] text-gray-500 bg-[#08090c]/90 py-1">⚠️ Market guidance is educational, not financial advice.</p>
+    </div>
+
+    <!-- Controls Footer -->
+    <div class="absolute bottom-0 left-0 right-0 p-3 glass border-t border-red-950/40 flex flex-col gap-2">
+        <div class="flex gap-2 items-center">
+            <!-- File Select -->
+            <label class="cursor-pointer bg-gray-900/80 border border-gray-800 hover:border-red-600 text-gray-400 p-3 rounded-xl transition-all">
+                📁
+                <input id="image-input" type="file" accept="image/*" class="hidden" onchange="previewFile()">
+            </label>
+
+            <!-- Mic Trigger -->
+            <button id="mic-btn" onclick="toggleListening()" class="bg-gray-900/80 border border-gray-800 hover:border-red-600 text-gray-400 p-3 rounded-xl transition-all active:scale-95">
+                🎙️
+            </button>
+
+            <!-- Input Box -->
+            <input id="user-input" type="text" placeholder="Hukum kijiye, boss..." 
+                class="flex-1 bg-gray-900/60 border border-gray-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-red-600 text-white">
+            
+            <!-- Send Button -->
+            <button onclick="sendMessage()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-xl font-bold text-sm transition-all active:scale-95 glow-red">
+                Send
+            </button>
+        </div>
+    </div>
+
+    <!-- Core Engine Scripts -->
+    <script type="module">
+        import { GoogleGenAI } from "https://esm.run";
+
+        // ⚠️ APNI GEMINI API KEY YAHAN DAALEIN
+        const API_KEY = "YOUR_GEMINI_API_KEY_HERE"; 
+        
+        const ai = new GoogleGenAI({ apiKey: API_KEY });
+        let isListening = false;
+        let recognition = null;
+        let base64Image = null;
+
+        // 🎙️ Voice Listen Setup (Aawaz Sunna)
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.lang = 'hi-IN'; 
+            recognition.interimResults = false;
+
+            recognition.onstart = () => {
+                document.getElementById('mic-btn').classList.add('bg-red-600', 'text-white');
+                document.getElementById('user-input').placeholder = "Sunn raha hu, boliye boss...";
+            };
+
+            recognition.onend = () => {
+                document.getElementById('mic-btn').classList.remove('bg-red-600', 'text-white');
+                document.getElementById('user-input').placeholder = "Hukum kijiye, boss...";
+                isListening = false;
+            };
+
+            recognition.onresult = (event) => {
+                const speechToText = event.results.transcript;
+                document.getElementById('user-input').value = speechToText;
+                window.sendMessage(); 
+            };
+        }
+
+        window.toggleListening = function() {
+            if (!recognition) {
+                alert("Boss, browser me voice support nahi mila.");
+                return;
+            }
+            if (isListening) {
+                recognition.stop();
+            } else {
+                recognition.start();
+                isListening = true;
+            }
+        }
+
+        // 🔊 Voice Response Output (Bolkar Jawab Dena)
+        window.speakOut = function(text) {
+            window.speechSynthesis.cancel(); 
+            let cleanText = text.replace(/\*/g, '');
+            const utterance = new SpeechSynthesisUtterance(cleanText);
+            utterance.lang = 'hi-IN'; 
+            utterance.rate = 1.0;     
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // 📷 Image Parser (Photo Handle)
+        window.previewFile = function() {
+            const file = document.getElementById('image-input').files;
+            const previewContainer = document.getElementById('image-preview-container');
+            const previewImg = document.getElementById('image-preview');
+
+            if (file) {
+                const reader = new FileReader();
+                reader.onloadend = function() {
+                    previewImg.src = reader.result;
+                    base64Image = reader.result.split(','); 
+                    previewContainer.classList.remove('hidden');
+                }
+                reader.readAsDataURL(file);
+            }
+        }
+
+        window.clearImage = function() {
+            document.getElementById('image-input').value = "";
+            base64Image = null;
+            document.getElementById('image-preview-container').classList.add('hidden');
+        }
+
+        // 🚀 Main Network Transit (Message Process)
+        window.sendMessage = async function() {
+            const input = document.getElementById('user-input');
+            const chatBox = document.getElementById('chat-box');
+            const userText = input.value.trim();
+            
+            if(!userText && !base64Image) return;
+
+            let userMsgContent = userText;
+            if (base64Image) {
+                userMsgContent += `<br><img class="w-32 h-32 rounded-xl mt-2 border border-red-500/30 object-cover" src="data:image/jpeg;base64,${base64Image}">`;
+            }
+
+            const userMsg = `<div class="bg-red-600/10 border border-red-500/30 p-3 rounded-2xl max-w-[85%] ml-auto text-sm border-r-4 border-red-500">${userMsgContent}</div>`;
+            chatBox.innerHTML += userMsg;
+            
+            const botId = 'bot-' + Date.now();
+            const botMsg = `<div id="${botId}" class="glass p-3 rounded-2xl max-w-[85%] text-sm text-gray-300 font-medium">Processing order, boss...</div>`;
+            chatBox.innerHTML += botMsg;
+            
+            chatBox.scrollTop = chatBox.scrollHeight;
+            input.value = '';
+
+            let apiContents = [];
+            if (base64Image) {
+                apiContents.push({
+                    inlineData: {
+                        data: base64Image,
+                        mimeType: "image/jpeg"
+                    }
+                });
+            }
+            apiContents.push(userText || "Analyze this trading chart or image for me, boss.");
+
+            window.clearImage();
+
+            try {
+                // Gemini API Call Setup with Custom Master Instructions
+                const response = await ai.models.generateContent({
+                    model: 'gemini-1.5-flash',
+                    contents: apiContents,
+                    config: {
+                        systemInstruction: "You are SUNDAY AI, the most loyal secret AI friend created for 'boss'. You must strictly obey ONLY boss. Start every reply with 'Yes, Boss! 🫡'. You are a legendary master of stock markets, cryptocurrency, and reading complex candlestick charts. You also handle technical automation and CSC tasks. IMPORTANT: Always reply in simple Hinglish (Mix of Hindi and English words) like a close friend talking to another friend. Keep answers brief, punchy, and highly confidential. Do not use pure complex Hindi or pure English.",
+                    }
+                });
+
+                const aiResponseText = response.text;
+                const botElement = document.getElementById(botId);
+                
