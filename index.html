@@ -35,11 +35,12 @@
     </div>
 
     <!-- Image Upload Preview -->
-    <div id="image-preview-container" class="hidden absolute bottom-24 left-4 right-4 p-2 glass rounded-xl flex items-center gap-2">
-        <img id="image-preview" class="w-12 h-12 rounded-lg object-cover border border-red-500" src="" alt="Preview">
-        <span class="text-xs text-gray-400 flex-1 truncate">Chart Selected...</span>
-        <button onclick="clearImage()" class="text-red-500 text-xs px-2 py-1">Remove</button>
-    </div>
+    <div id="image-preview-container" class="right-4 p-2 glass rounded-xl flex items-center gap-2">
+    <img id="image-preview" onerror="this.style.display='none'" class="w-12 h-12 object-cover rounded-md" alt="">
+    <span class="text-xs text-gray-400">Preview Chart Selected...</span>
+    <button onclick="clearImage()" class="text-xs bg-red-500 text-white px-2 py-1 rounded">Remove</button>
+        
+    
 
     <!-- Disclaimer Bottom -->
     <div class="absolute bottom-20 left-0 right-0 text-center px-4">
