@@ -27,7 +27,6 @@
             text-align: center;
             flex: 1;
         }
-        /* बॉस, यह रहा आपका शानदार गोल ग्रीन लोगो */
         .nucleus {
             position: relative;
             width: 80px;
@@ -169,8 +168,9 @@
             border-top: 1px solid rgba(255,255,255,0.02);
             padding-top: 8px;
         }
-        .buttons-group { display: flex; align-items: center; gap: 8px; }
-        .mic-btn { background: transparent; border: none; font-size: 16px; cursor: pointer; }
+        .buttons-group { display: flex; align-items: center; gap: 12px; }
+        .icon-btn { background: transparent; border: none; font-size: 18px; cursor: pointer; color: #9ca3af; }
+        .icon-btn:hover { color: #10b981; }
         .send-btn {
             background: #10b981;
             color: #ffffff;
@@ -186,13 +186,30 @@
             justify-content: center;
             box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
         }
+        #img-preview-badge {
+            display: none;
+            background: rgba(255,255,255,0.05);
+            padding: 4px 8px;
+            border-radius: 8px;
+            font-size: 12px;
+            align-items: center;
+            gap: 6px;
+            align-self: flex-start;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
     </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "@google/generative-ai": "https://esm.run"
+        }
+      }
+    </script>
 </head>
 <body>
 
     <div class="main-container">
         <div id="welcome-screen">
-            <!-- ग्रीन ग्लोइंग गोल मार्क लोगो -->
             <div class="nucleus">
                 <div class="nucleus-glow"></div>
                 <div class="nucleus-core"></div>
@@ -202,10 +219,10 @@
             <p class="desc">Ask Sunday to explain market moves, compare trading concepts, or pressure-test the risks behind an idea.</p>
             
             <div class="cards-group">
-                <div class="glass-card" onclick="setCommand('Explain a market move in plain language')">
+                <div class="glass-card" onclick="setCommand('Kal share market kaisa rhega?')">
                     <div>
                         <div class="card-tag">Market Context</div>
-                        <div class="card-text">Explain a market move in plain language</div>
+                        <div class="card-text">Kal share market kaisa rhega?</div>
                     </div>
                     <div class="card-arrow">↘</div>
                 </div>
@@ -217,63 +234,61 @@
 
     <div class="footer-container">
         <div class="input-box-wrapper">
+            <div id="img-preview-badge">🖼️ <span id="img-name"></span> <b onclick="clearSelectedImage()" style="color:#ef4444;cursor:pointer;margin-left:4px;">✕</b></div>
             <input type="text" id="chat-input" placeholder="Command, boss..." class="main-input">
             <div class="action-row">
                 <div class="buttons-group">
-                    <button class="mic-btn">🎙️</button>
+                    <label for="photo-upload" class="icon-btn" style="cursor: pointer;">🖼️</label>
+                    <input type="file" id="photo-upload" accept="image/*" style="display: none;" onchange="imageSelected(this)">
+                    <button class="icon-btn" id="mic-btn" onclick="startVoiceRecognition()">🎙️</button>
                     <button class="send-btn" id="send-btn">↑</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <script>
-        function setCommand(text) {
+    <script type="module">
+        import { GoogleGenAI } from "@google/generative-ai";
+
+        // ⚠️ बॉस, यहाँ सिंगल कोट के बीच अपनी जेमिनी API KEY पेस्ट कर दें
+        const API_KEY = 'YOUR_GEMINI_API_KEY_HERE'; 
+
+        let selectedImageBase64 = null;
+
+        window.setCommand = function(text) {
             document.getElementById('chat-input').value = text;
         }
 
-        // आपका ओरिजिनल और सुरक्षित एआई चैट लॉजिक
-        document.getElementById('send-btn').addEventListener('click', async () => {
-            const inputField = document.getElementById('chat-input');
-            const chatOutput = document.getElementById('chat-output');
-            const welcomeScreen = document.getElementById('welcome-screen');
-            const userText = inputField.value.trim();
-
-            if (!userText) return;
-
-            if (welcomeScreen) welcomeScreen.style.display = 'none';
-
-            const userMessage = document.createElement('div');
-            userMessage.className = 'message user-msg';
-            userMessage.innerText = userText;
-            chatOutput.appendChild(userMessage);
-            inputField.value = '';
-
-            const aiMessage = document.createElement('div');
-            aiMessage.className = 'message ai-msg';
-            aiMessage.innerText = 'Boss, Sunday AI सोच रहा है...';
-            chatOutput.appendChild(aiMessage);
-
-            try {
-                const response = await fetch('/api/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: userText })
-                });
-                const data = await response.json();
-                aiMessage.innerText = data.reply || 'कोई जवाब नहीं मिला, बॉस।';
-            } catch (error) {
-                aiMessage.innerText = 'कनेक्शन एरर आया बॉस, कृपया दोबारा ट्राई करें।';
+        window.imageSelected = function(input) {
+            if (input.files && input.files[0]) {
+                const file = input.files[0];
+                document.getElementById('img-name').innerText = file.name;
+                document.getElementById('img-preview-badge').style.display = 'flex';
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    selectedImageBase64 = e.target.result.split(',')[1];
+                };
+                reader.readAsDataURL(file);
             }
-            window.scrollTo(0, document.body.scrollHeight);
-        });
+        }
 
-        document.getElementById('chat-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                document.getElementById('send-btn').click();
+        window.clearSelectedImage = function() {
+            selectedImageBase64 = null;
+            document.getElementById('photo-upload').value = '';
+            document.getElementById('img-preview-badge').style.display = 'none';
+        }
+
+        window.startVoiceRecognition = function() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                alert("Boss, please use Chrome browser for voice features.");
+                return;
             }
-        });
-    </script>
-</body>
-                             </html>
-                             
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'hi-IN'; 
+            document.getElementById('mic-btn').style.color = '#10b981';
+            recognition.onresult = function(event) {
+                document.getElementById('chat-input').value = event.results[0][0].transcript;
+                document.getElementById('mic-btn').style.color = '#9ca3af';
+            };
+                        
