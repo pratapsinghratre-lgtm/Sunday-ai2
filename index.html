@@ -116,11 +116,6 @@
             justify-content: space-between;
             align-items: flex-start;
             cursor: pointer;
-            transition: all 0.25s ease;
-        }
-        .glass-card:hover {
-            border-color: rgba(16, 185, 129, 0.4);
-            background: rgba(255, 255, 255, 0.04);
         }
         .card-tag {
             font-size: 10px;
@@ -168,18 +163,18 @@
             border-top: 1px solid rgba(255,255,255,0.02);
             padding-top: 8px;
         }
-        .buttons-group { display: flex; align-items: center; gap: 12px; }
-        .icon-btn { background: transparent; border: none; font-size: 18px; cursor: pointer; color: #9ca3af; }
+        .buttons-group { display: flex; align-items: center; gap: 16px; }
+        .icon-btn { background: transparent; border: none; font-size: 20px; cursor: pointer; color: #9ca3af; }
         .icon-btn:hover { color: #10b981; }
         .send-btn {
             background: #10b981;
             color: #ffffff;
             border: none;
-            width: 32px;
-            height: 32px;
+            width: 34px;
+            height: 34px;
             border-radius: 50%;
             font-weight: bold;
-            font-size: 14px;
+            font-size: 16px;
             cursor: pointer;
             display: flex;
             align-items: center;
@@ -188,23 +183,17 @@
         }
         #img-preview-badge {
             display: none;
-            background: rgba(255,255,255,0.05);
-            padding: 4px 8px;
+            background: rgba(16, 185, 129, 0.1);
+            padding: 6px 12px;
             border-radius: 8px;
             font-size: 12px;
             align-items: center;
             gap: 6px;
             align-self: flex-start;
-            border: 1px solid rgba(255,255,255,0.1);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: #10b981;
         }
     </style>
-    <script type="importmap">
-      {
-        "imports": {
-          "@google/generative-ai": "https://esm.run"
-        }
-      }
-    </script>
 </head>
 <body>
 
@@ -234,61 +223,74 @@
 
     <div class="footer-container">
         <div class="input-box-wrapper">
-            <div id="img-preview-badge">🖼️ <span id="img-name"></span> <b onclick="clearSelectedImage()" style="color:#ef4444;cursor:pointer;margin-left:4px;">✕</b></div>
+            <!-- सिलेक्टेड इमेज थंबनेल -->
+            <div id="img-preview-badge">🖼️ <span id="img-name"></span> <b onclick="clearSelectedImage()" style="color:#ef4444;cursor:pointer;margin-left:6px;">✕</b></div>
+            
             <input type="text" id="chat-input" placeholder="Command, boss..." class="main-input">
             <div class="action-row">
                 <div class="buttons-group">
+                    <!-- 🖼️ फोटो बटन -->
                     <label for="photo-upload" class="icon-btn" style="cursor: pointer;">🖼️</label>
                     <input type="file" id="photo-upload" accept="image/*" style="display: none;" onchange="imageSelected(this)">
+                    
+                    <!-- 🎙️ माइक बटन -->
                     <button class="icon-btn" id="mic-btn" onclick="startVoiceRecognition()">🎙️</button>
+                    
+                    <!-- ↑ सेंड बटन -->
                     <button class="send-btn" id="send-btn">↑</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <script type="module">
-        import { GoogleGenAI } from "@google/generative-ai";
+    <script>
+        let base64Image = null;
 
-        // ⚠️ बॉस, यहाँ सिंगल कोट के बीच अपनी जेमिनी API KEY पेस्ट कर दें
-        const API_KEY = 'YOUR_GEMINI_API_KEY_HERE'; 
-
-        let selectedImageBase64 = null;
-
-        window.setCommand = function(text) {
+        function setCommand(text) {
             document.getElementById('chat-input').value = text;
         }
 
-        window.imageSelected = function(input) {
+        // फोटो सिलेक्ट होने का फंक्शन
+        function imageSelected(input) {
             if (input.files && input.files[0]) {
                 const file = input.files[0];
                 document.getElementById('img-name').innerText = file.name;
                 document.getElementById('img-preview-badge').style.display = 'flex';
+                
                 const reader = new FileReader();
                 reader.onload = function(e) {
-                    selectedImageBase64 = e.target.result.split(',')[1];
+                    base64Image = e.target.result.split(',')[1];
                 };
                 reader.readAsDataURL(file);
             }
         }
 
-        window.clearSelectedImage = function() {
-            selectedImageBase64 = null;
+        function clearSelectedImage() {
+            base64Image = null;
             document.getElementById('photo-upload').value = '';
             document.getElementById('img-preview-badge').style.display = 'none';
         }
 
-        window.startVoiceRecognition = function() {
+        // 🎙️ असली माइक वौइस् रिकग्निशन
+        function startVoiceRecognition() {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (!SpeechRecognition) {
-                alert("Boss, please use Chrome browser for voice features.");
+                alert("Boss, please use Chrome browser on mobile for mic typing.");
                 return;
             }
             const recognition = new SpeechRecognition();
-            recognition.lang = 'hi-IN'; 
+            recognition.lang = 'hi-IN';
             document.getElementById('mic-btn').style.color = '#10b981';
+            
             recognition.onresult = function(event) {
                 document.getElementById('chat-input').value = event.results[0][0].transcript;
                 document.getElementById('mic-btn').style.color = '#9ca3af';
             };
-                        
+            recognition.onerror = function() {
+                document.getElementById('mic-btn').style.color = '#9ca3af';
+            };
+            recognition.start();
+        }
+
+        // 🚀 डायरेक्ट एआई कॉलिंग (नो की नीडेड गेटवे)
+        
