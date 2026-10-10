@@ -73,7 +73,6 @@
             margin: 0 auto 32px auto;
             line-height: 1.6;
         }
-        /* चैट मैसेजेस एरिया */
         .chat-output-area {
             max-width: 500px;
             width: 100%;
@@ -116,11 +115,6 @@
             justify-content: space-between;
             align-items: flex-start;
             cursor: pointer;
-            transition: all 0.25s ease;
-        }
-        .glass-card:hover {
-            border-color: rgba(234, 56, 76, 0.4);
-            background: rgba(255, 255, 255, 0.06);
         }
         .card-tag {
             font-size: 10px;
@@ -135,11 +129,7 @@
             margin-top: 4px;
             font-weight: 500;
         }
-        .card-arrow {
-            color: #ea384c;
-            font-size: 18px;
-            font-weight: bold;
-        }
+        .card-arrow { color: #ea384c; font-size: 18px; font-weight: bold; }
         .footer-container {
             max-width: 500px;
             width: 100%;
@@ -186,19 +176,8 @@
             padding: 2px 8px;
             border-radius: 6px;
         }
-        .buttons-group {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .mic-btn {
-            background: transparent;
-            border: none;
-            font-size: 16px;
-            cursor: pointer;
-            padding: 6px;
-            opacity: 0.7;
-        }
+        .buttons-group { display: flex; align-items: center; gap: 8px; }
+        .mic-btn { background: transparent; border: none; font-size: 16px; cursor: pointer; }
         .send-btn {
             background: #ea384c;
             color: #ffffff;
@@ -212,7 +191,6 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 0 10px rgba(234, 56, 76, 0.4);
         }
         .disclaimer-section {
             text-align: center;
@@ -222,11 +200,18 @@
             line-height: 1.5;
         }
     </style>
+    <!-- जेमिनी एआई को सीधे फ्रंटएंड में लोड करने के लिए आधिकारिक स्क्रिप्ट मॉड्यूल -->
+    <script type="importmap">
+      {
+        "imports": {
+          "@google/generative-ai": "https://esm.run"
+        }
+      }
+    </script>
 </head>
 <body>
 
     <div class="main-container">
-        <!-- डिफ़ॉल्ट वेलकम स्क्रीन -->
         <div id="welcome-screen">
             <div class="nucleus">
                 <div class="nucleus-glow"></div>
@@ -254,11 +239,9 @@
             </div>
         </div>
 
-        <!-- चैट आउटपुट एरिया -->
         <div id="chat-output" class="chat-output-area"></div>
     </div>
 
-    <!-- इनपुट फूटर -->
     <div class="footer-container">
         <div class="input-box-wrapper">
             <input type="text" id="user-input" placeholder="Command, boss..." class="main-input" onkeypress="if(event.key === 'Enter') handleSend()">
@@ -279,13 +262,17 @@
         </div>
     </div>
 
-    <!-- एआई चालू करने वाली मुख्य स्क्रिप्ट -->
-    <script>
-        function setCommand(text) {
+    <script type="module">
+        import { GoogleGenAI } from "@google/generative-ai";
+
+        // बॉस, अपनी असली जेमिनी एपीआई की (API Key) नीचे खाली जगह '' में डाल दें
+        const API_KEY = ''; 
+
+        window.setCommand = function(text) {
             document.getElementById('user-input').value = text;
         }
 
-        async function handleSend() {
+        window.handleSend = async function() {
             const inputEl = document.getElementById('user-input');
             const chatOutput = document.getElementById('chat-output');
             const welcomeScreen = document.getElementById('welcome-screen');
@@ -293,20 +280,24 @@
             
             if (!query) return;
 
-            // वेलकम यूआई को छिपाएं
             if (welcomeScreen) welcomeScreen.style.display = 'none';
 
-            // यूजर का मैसेज स्क्रीन पर जोड़ें
             const userDiv = document.createElement('div');
             userDiv.className = 'message user-msg';
             userDiv.innerText = query;
             chatOutput.appendChild(userDiv);
             inputEl.value = '';
 
-            // लोडिंग इंडिकेटर
             const aiDiv = document.createElement('div');
             aiDiv.className = 'message ai-msg';
             aiDiv.innerText = "Boss, Sunday AI सोच रहा है...";
             chatOutput.appendChild(aiDiv);
+            window.scrollTo(0, document.body.scrollHeight);
+
+            if (!API_KEY) {
+                aiDiv.innerText = "बॉस, कोड बिल्कुल सही काम कर रहा है! बस स्क्रिप्ट के अंदर लाइन नंबर 176 पर अपनी Gemini API Key डाल दीजिए, फिर जवाब आना शुरू हो जाएगा।";
+                return;
+            }
 
             try {
+        
