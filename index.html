@@ -4,112 +4,265 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SUNDAY AI v3.0</title>
-    <!-- ब्राउज़र को सुपर-फ़ास्ट ऑन करने के लिए लाइटवेट Tailwind CDN -->
-    <script src="https://tailwindcss.com"></script>
     <style>
+        /* सुपर-फ़ास्ट लोडिंग के लिए प्योर सीएसएस कोर */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
         body {
             background: linear-gradient(180deg, #0f051d 0%, #05020a 100%);
+            color: #e5e7eb;
+            min-height: screen;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+        }
+        .main-container {
+            max-width: 500px;
+            width: 100%;
+            margin: 40px auto auto auto;
+            text-align: center;
+        }
+        /* ग्लोइंग न्यूक्लियस आइकॉन */
+        .nucleus {
+            position: relative;
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 24px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .nucleus-glow {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: #ea384c;
+            border-radius: 50%;
+            filter: blur(20px);
+            opacity: 0.3;
+        }
+        .nucleus-core {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #ff5f6d, #ffc371);
+            border-radius: 50%;
+            box-shadow: 0 0 20px #ea384c;
+        }
+        h1 {
+            font-size: 42px;
+            font-weight: 800;
+            color: #ffffff;
+            margin-bottom: 12px;
+            letter-spacing: -1px;
+        }
+        h1 span { color: #ea384c; }
+        .subtitle {
+            font-size: 16px;
+            color: #9ca3af;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        .desc {
+            font-size: 12px;
+            color: #6b7280;
+            max-width: 360px;
+            margin: 0 auto 32px auto;
+            line-height: 1.6;
+        }
+        /* प्रीमियम ग्लास कार्ड्स */
+        .cards-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            text-align: left;
         }
         .glass-card {
             background: rgba(255, 255, 255, 0.03);
             border: 1px solid rgba(255, 255, 255, 0.08);
-            backdrop-filter: blur(12px);
+            border-radius: 12px;
+            padding: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            cursor: pointer;
+            transition: all 0.25s ease;
         }
         .glass-card:hover {
-            border-color: rgba(234, 56, 76, 0.3);
-            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(234, 56, 76, 0.4);
+            background: rgba(255, 255, 255, 0.06);
+        }
+        .card-tag {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #ea384c;
+            letter-spacing: 1px;
+        }
+        .card-text {
+            font-size: 14px;
+            color: #e5e7eb;
+            margin-top: 4px;
+            font-weight: 500;
+        }
+        .card-arrow {
+            color: #ea384c;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        /* बॉटम इनपुट कंट्रोल्स */
+        .footer-container {
+            max-width: 500px;
+            width: 100%;
+            margin: 24px auto 0 auto;
+        }
+        .input-box-wrapper {
+            background: #120c1f;
+            border: 1px solid #221a30;
+            border-radius: 16px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .main-input {
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: #ffffff;
+            outline: none;
+            font-size: 14px;
+            padding: 4px;
+        }
+        .main-input::placeholder { color: #4b5563; }
+        .action-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid rgba(255,255,255,0.02);
+            padding-top: 8px;
+        }
+        .info-tags {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            color: #4b5563;
+        }
+        .lang-badge {
+            background: #1a1329;
+            border: 1px solid #2b1f42;
+            color: #9ca3af;
+            padding: 2px 8px;
+            border-radius: 6px;
+        }
+        .buttons-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .mic-btn {
+            background: transparent;
+            border: none;
+            font-size: 16px;
+            cursor: pointer;
+            padding: 6px;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+        .mic-btn:hover { opacity: 1; }
+        .send-btn {
+            background: #ea384c;
+            color: #ffffff;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 10px rgba(234, 56, 76, 0.4);
+        }
+        .send-btn:hover { background: #ff4d61; }
+        .disclaimer-section {
+            text-align: center;
+            margin-top: 12px;
+            font-size: 10px;
+            color: #4b5563;
+            line-height: 1.5;
         }
     </style>
 </head>
-<body class="text-gray-200 min-h-screen flex flex-col justify-between p-4 md:p-6 font-sans">
+<body>
 
-    <!-- मेन कंटेंट कंटेनर -->
-    <div class="max-w-xl w-full mx-auto flex-1 flex flex-col justify-center items-center text-center my-8">
-        
-        <!-- ग्लोइंग रेड न्यूक्लियस आइकॉन -->
-        <div class="relative w-20 h-20 mb-6 flex items-center justify-center">
-            <div class="absolute inset-0 bg-red-600 rounded-full blur-xl opacity-40 animate-pulse"></div>
-            <div class="w-10 h-10 bg-gradient-to-tr from-red-500 to-pink-500 rounded-full shadow-[0_0_20px_#ea384c]"></div>
+    <!-- मेन डैशबोर्ड बॉडी -->
+    <div class="main-container">
+        <div class="nucleus">
+            <div class="nucleus-glow"></div>
+            <div class="nucleus-core"></div>
         </div>
 
-        <!-- मुख्य हेडिंग -->
-        <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight text-white mb-3">
-            Let's get clear<span class="text-red-500">.</span>
-        </h1>
-        
-        <p class="text-lg font-medium text-gray-400 mb-2">A calmer way to think through a trade.</p>
-        <p class="text-xs text-gray-500 max-w-sm leading-relaxed mb-8">
-            Ask Sunday to explain market moves, compare trading concepts, or pressure-test the risks behind an idea. Educational context, never a promise.
-        </p>
+        <h1>Let's get clear<span>.</span></h1>
+        <p class="subtitle">A calmer way to think through a trade.</p>
+        <p class="desc">Ask Sunday to explain market moves, compare trading concepts, or pressure-test the risks behind an idea. Educational context, never a promise.</p>
 
-        <!-- क्विक सजेशन कार्ड्स (क्लिक करने योग्य) -->
-        <div class="w-full space-y-3 text-left">
-            
-            <!-- कार्ड 1 -->
-            <div class="glass-card p-4 rounded-xl flex justify-between items-start cursor-pointer transition-all duration-300">
+        <div class="cards-group">
+            <div class="glass-card">
                 <div>
-                    <span class="text-[10px] font-bold tracking-wider text-red-400 uppercase">Market Context</span>
-                    <p class="text-sm text-gray-200 font-medium mt-1">Explain a market move in plain language</p>
+                    <div class="card-tag">Market Context</div>
+                    <div class="card-text">Explain a market move in plain language</div>
                 </div>
-                <span class="text-red-400 text-lg font-bold">↘</span>
+                <div class="card-arrow">↘</div>
             </div>
 
-            <!-- कार्ड 2 -->
-            <div class="glass-card p-4 rounded-xl flex justify-between items-start cursor-pointer transition-all duration-300">
+            <div class="glass-card">
                 <div>
-                    <span class="text-[10px] font-bold tracking-wider text-red-400 uppercase">Think Risk-First</span>
-                    <p class="text-sm text-gray-200 font-medium mt-1">What risks should I consider before buying a stock?</p>
+                    <div class="card-tag">Think Risk-First</div>
+                    <div class="card-text">What risks should I consider before buying a stock?</div>
                 </div>
-                <span class="text-red-400 text-lg font-bold">↘</span>
+                <div class="card-arrow">↘</div>
             </div>
 
-            <!-- कार्ड 3 -->
-            <div class="glass-card p-4 rounded-xl flex justify-between items-start cursor-pointer transition-all duration-300">
+            <div class="glass-card">
                 <div>
-                    <span class="text-[10px] font-bold tracking-wider text-red-400 uppercase">Trading Basics</span>
-                    <p class="text-sm text-gray-200 font-medium mt-1">Help me compare a limit order and a market order</p>
+                    <div class="card-tag">Trading Basics</div>
+                    <div class="card-text">Help me compare a limit order and a market order</div>
                 </div>
-                <span class="text-red-400 text-lg font-bold">↘</span>
+                <div class="card-arrow">↘</div>
             </div>
-
         </div>
     </div>
 
-    <!-- बॉटम कंट्रोल्स फूटर -->
-    <div class="max-w-xl w-full mx-auto space-y-3">
-        
-        <!-- इनपुट बॉक्स एरिया -->
-        <div class="bg-[#120c1f] border border-gray-800 rounded-2xl p-3 flex flex-col gap-3 shadow-2xl">
-            <input type="text" placeholder="Command, boss..." class="w-full bg-transparent text-white placeholder-gray-600 outline-none text-sm px-1 py-1">
+    <!-- बॉटम कंट्रोल्स बार -->
+    <div class="footer-container">
+        <div class="input-box-wrapper">
+            <input type="text" placeholder="Command, boss..." class="main-input">
             
-            <!-- एक्शन बटन्स बार -->
-            <div class="flex justify-between items-center pt-1">
-                <div class="flex items-center gap-2 text-[11px] text-gray-500">
+            <div class="action-row">
+                <div class="info-tags">
                     <span>⌘ Enter to send</span>
-                    <span class="bg-gray-900 border border-gray-800 px-2 py-0.5 rounded-md text-gray-400 cursor-pointer">Hindi / Hinglish ▾</span>
+                    <span class="lang-badge">Hindi / Hinglish ▾</span>
                 </div>
-                
-                <div class="flex items-center gap-2">
-                    <!-- माइक बटन -->
-                    <button class="text-gray-400 hover:text-white p-2 rounded-full hover:bg-gray-900 transition-colors">
-                        🎤
-                    </button>
-                    <!-- सेंड बटन -->
-                    <button class="bg-red-600 hover:bg-red-700 text-white w-8 h-8 rounded-full flex items-center justify-center transition-colors shadow-[0_0_10px_rgba(234,56,76,0.4)]">
-                        ↑
-                    </button>
+                <div class="buttons-group">
+                    <button class="mic-btn">🎙️</button>
+                    <button class="send-btn">↑</button>
                 </div>
             </div>
         </div>
 
-        <!-- डिस्क्लेमर टेक्स्ट -->
-        <div class="text-center space-y-1 py-1">
-            <p class="text-[10px] text-gray-600 flex items-center justify-center gap-1">🛡️ Your chats stay on this device</p>
-            <p class="text-[10px] text-gray-600">✨ Market guidance is educational, not live market data or financial advice.</p>
+        <div class="disclaimer-section">
+            <p>🛡️ Your chats stay on this device</p>
+            <p>✨ Market guidance is educational, not live market data or financial advice.</p>
         </div>
-
     </div>
 
 </body>
-    </html>
-    
+</html>
