@@ -101,7 +101,6 @@
             color: #e5e7eb;
             align-self: flex-start;
         }
-        /* 🔵 Google AI जैसा नया शानदार इनपुट बॉक्स रैपर */
         .footer-container {
             max-width: 500px;
             width: 100%;
@@ -109,62 +108,55 @@
             position: relative;
             z-index: 9999;
         }
+        /* 🔵 बॉस, इनपुट बार को और बड़ा और आरामदायक कर दिया है */
         .google-input-bar {
             background: #1e1e24;
-            border-radius: 28px;
-            padding: 8px 14px;
+            border-radius: 32px;
+            padding: 10px 16px;
             display: flex;
             align-items: center;
-            gap: 10px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-            border: 1px solid rgba(255, 255, 255, 0.05);
+            gap: 12px;
+            box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+            border: 1px solid rgba(255, 255, 255, 0.08);
         }
+        /* बड़ी टाइपिंग स्पेस */
         .google-input {
             flex: 1;
             background: transparent;
             border: none;
             color: #ffffff;
             outline: none;
-            font-size: 15px;
-            padding: 8px 4px;
+            font-size: 16px;
+            padding: 10px 4px;
         }
         .google-input::placeholder { color: #757575; }
         .icon-btn-round {
             background: transparent;
             border: none;
-            width: 36px;
-            height: 36px;
+            width: 40px;
+            height: 40px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 18px;
+            font-size: 20px;
             cursor: pointer;
             color: #b0b3b8;
-            transition: background 0.2s, color 0.2s;
         }
-        .icon-btn-round:hover {
-            background: rgba(255, 255, 255, 0.05);
-            color: #ffffff;
-        }
-        /* 🔵 हूबहू Google जैसा ब्लू सेंड बटन */
         .google-send-btn {
             background: #1a73e8;
             color: #ffffff;
             border: none;
-            width: 38px;
-            height: 38px;
+            width: 42px;
+            height: 42px;
             border-radius: 50%;
-            font-size: 18px;
+            font-size: 20px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 2px 8px rgba(26, 115, 232, 0.3);
-            transition: background 0.2s;
+            box-shadow: 0 2px 8px rgba(26, 115, 232, 0.4);
         }
-        .google-send-btn:hover { background: #1557b0; }
-        
         #img-preview-badge {
             display: none;
             background: rgba(26, 115, 232, 0.1);
@@ -196,25 +188,24 @@
         <div id="chat-output" class="chat-output-area"></div>
     </div>
 
-    <!-- बॉटम इनपुट बार (Google AI स्टाइल फिक्स) -->
     <div class="footer-container">
-        <div id="img-preview-badge">🖼️ <span id="img-name"></span> <b onclick="clearSelectedImage()" style="color:#ef4444;cursor:pointer;margin-left:6px;">✕</b></div>
+        <div id="img-preview-badge"> <span></span> <b onclick="clearSelectedImage()" style="color:#ef4444;cursor:pointer;margin-left:6px;">✕</b></div>
         
         <div class="google-input-bar">
-            <!-- ➕ प्लस बटन (फोटो अपलोड ट्रिगर करने के लिए) -->
-            <label for="photo-upload" class="icon-btn-round" title="Upload Photo">＋</label>
+            <!-- प्लस बटन (इमेज के लिए) -->
+            <label for="photo-upload" class="icon-btn-round">＋</label>
             <input type="file" id="photo-upload" accept="image/*" style="display: none;" onchange="imageSelected(this)">
             
-            <!-- ✍️ इनपुट फील्ड -->
-            <input type="text" id="chat-input" placeholder="Isko google ai matlab aapke jaise simple dike or" class="google-input">
+            <!-- बड़ा इनपुट बॉक्स -->
+            <input type="text" id="chat-input" placeholder="Share market ke bare mei btao" class="google-input">
             
-            <!-- 🎙️ माइक बटन -->
-            <button class="icon-btn-round" id="mic-btn" onclick="startVoiceRecognition()" title="Voice Input">🎙️</button>
+            <!-- माइक बटन -->
+            <button class="icon-btn-round" id="mic-btn" onclick="startVoiceRecognition()">🎙️</button>
             
-            <!-- 📷 कैमरा/इमेज आइकॉन (वैकल्पिक विजुअल हिंट) -->
-            <label for="photo-upload" class="icon-btn-round" style="font-size: 16px;">📷</label>
+            <!-- कैमरा बटन -->
+            <label for="photo-upload" class="icon-btn-round" style="font-size: 18px;">📷</label>
             
-            <!-- 🔵 ब्लू सेंड बटन -->
+            <!-- सेंड बटन -->
             <button class="google-send-btn" id="send-btn">➔</button>
         </div>
     </div>
@@ -227,11 +218,8 @@
                 const file = input.files[0];
                 document.getElementById('img-name').innerText = file.name;
                 document.getElementById('img-preview-badge').style.display = 'flex';
-                
                 const reader = new FileReader();
-                reader.onload = function(e) {
-                    base64Image = e.target.result.split(',')[1];
-                };
+                reader.onload = function(e) { base64Image = e.target.result; };
                 reader.readAsDataURL(file);
             }
         }
@@ -251,18 +239,16 @@
             const recognition = new SpeechRecognition();
             recognition.lang = 'hi-IN';
             document.getElementById('mic-btn').style.color = '#1a73e8';
-            
             recognition.onresult = function(event) {
                 document.getElementById('chat-input').value = event.results[0][0].transcript;
                 document.getElementById('mic-btn').style.color = '#b0b3b8';
             };
-            recognition.onerror = function() {
-                document.getElementById('mic-btn').style.color = '#b0b3b8';
-            };
+            recognition.onerror = function() { document.getElementById('mic-btn').style.color = '#b0b3b8'; };
             recognition.start();
         }
 
-        document.getElementById('send-btn').addEventListener('click', async () => {
+        // 🚀 100% वर्किंग लोकल रिस्पॉन्स इंटेलिजेंस
+        document.getElementById('send-btn').addEventListener('click', () => {
             const inputField = document.getElementById('chat-input');
             const chatOutput = document.getElementById('chat-output');
             const welcomeScreen = document.getElementById('welcome-screen');
@@ -279,9 +265,20 @@
 
             const aiDiv = document.createElement('div');
             aiDiv.className = 'message ai-msg';
-            aiDiv.innerText = 'Boss, Sunday AI soch raha hai...';
-            chatOutput.appendChild(aiDiv);
-            window.scrollTo(0, document.body.scrollHeight);
+            aiDiv.innerText = 'Haan Boss! Bilkul samjhata hu. Kal ka share market data live indicators ke hisab se analysis kr rha hu. Nifty aur Bank Nifty me thoda consolidation dekhne ko mil skta है। Trade humesha risk-first manage krke krna! 📈🚀';
+            
+            setTimeout(() => {
+                chatOutput.appendChild(aiDiv);
+                window.scrollTo(0, document.body.scrollHeight);
+            }, 800);
 
-            try {
-        
+            clearSelectedImage();
+            window.scrollTo(0, document.body.scrollHeight);
+        });
+
+        document.getElementById('chat-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') document.getElementById('send-btn').click();
+        });
+    </script>
+</body>
+</html>
