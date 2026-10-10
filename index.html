@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SUNDAY AI v3.0</title>
     <style>
-        /* सुपर-फ़ास्ट लोडिंग के लिए प्योर सीएसएस कोर */
         * {
             box-sizing: border-box;
             margin: 0;
@@ -15,7 +14,7 @@
         body {
             background: linear-gradient(180deg, #0f051d 0%, #05020a 100%);
             color: #e5e7eb;
-            min-height: screen;
+            min-height: 100vh;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
@@ -26,8 +25,8 @@
             width: 100%;
             margin: 40px auto auto auto;
             text-align: center;
+            flex: 1;
         }
-        /* ग्लोइंग न्यूक्लियस आइकॉन */
         .nucleus {
             position: relative;
             width: 80px;
@@ -74,7 +73,34 @@
             margin: 0 auto 32px auto;
             line-height: 1.6;
         }
-        /* प्रीमियम ग्लास कार्ड्स */
+        /* चैट मैसेजेस एरिया */
+        .chat-output-area {
+            max-width: 500px;
+            width: 100%;
+            margin: 20px auto;
+            text-align: left;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .message {
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-size: 14px;
+            max-width: 85%;
+            line-height: 1.5;
+        }
+        .user-msg {
+            background: #ea384c;
+            color: white;
+            align-self: flex-end;
+        }
+        .ai-msg {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: #e5e7eb;
+            align-self: flex-start;
+        }
         .cards-group {
             display: flex;
             flex-direction: column;
@@ -114,7 +140,6 @@
             font-size: 18px;
             font-weight: bold;
         }
-        /* बॉटम इनपुट कंट्रोल्स */
         .footer-container {
             max-width: 500px;
             width: 100%;
@@ -173,9 +198,7 @@
             cursor: pointer;
             padding: 6px;
             opacity: 0.7;
-            transition: opacity 0.2s;
         }
-        .mic-btn:hover { opacity: 1; }
         .send-btn {
             background: #ea384c;
             color: #ffffff;
@@ -191,7 +214,6 @@
             justify-content: center;
             box-shadow: 0 0 10px rgba(234, 56, 76, 0.4);
         }
-        .send-btn:hover { background: #ff4d61; }
         .disclaimer-section {
             text-align: center;
             margin-top: 12px;
@@ -203,49 +225,43 @@
 </head>
 <body>
 
-    <!-- मेन डैशबोर्ड बॉडी -->
     <div class="main-container">
-        <div class="nucleus">
-            <div class="nucleus-glow"></div>
-            <div class="nucleus-core"></div>
-        </div>
-
-        <h1>Let's get clear<span>.</span></h1>
-        <p class="subtitle">A calmer way to think through a trade.</p>
-        <p class="desc">Ask Sunday to explain market moves, compare trading concepts, or pressure-test the risks behind an idea. Educational context, never a promise.</p>
-
-        <div class="cards-group">
-            <div class="glass-card">
-                <div>
-                    <div class="card-tag">Market Context</div>
-                    <div class="card-text">Explain a market move in plain language</div>
-                </div>
-                <div class="card-arrow">↘</div>
+        <!-- डिफ़ॉल्ट वेलकम स्क्रीन -->
+        <div id="welcome-screen">
+            <div class="nucleus">
+                <div class="nucleus-glow"></div>
+                <div class="nucleus-core"></div>
             </div>
-
-            <div class="glass-card">
-                <div>
-                    <div class="card-tag">Think Risk-First</div>
-                    <div class="card-text">What risks should I consider before buying a stock?</div>
+            <h1>Let's get clear<span>.</span></h1>
+            <p class="subtitle">A calmer way to think through a trade.</p>
+            <p class="desc">Ask Sunday to explain market moves, compare trading concepts, or pressure-test the risks behind an idea.</p>
+            
+            <div class="cards-group">
+                <div class="glass-card" onclick="setCommand('Explain a market move in plain language')">
+                    <div>
+                        <div class="card-tag">Market Context</div>
+                        <div class="card-text">Explain a market move in plain language</div>
+                    </div>
+                    <div class="card-arrow">↘</div>
                 </div>
-                <div class="card-arrow">↘</div>
-            </div>
-
-            <div class="glass-card">
-                <div>
-                    <div class="card-tag">Trading Basics</div>
-                    <div class="card-text">Help me compare a limit order and a market order</div>
+                <div class="glass-card" onclick="setCommand('What risks should I consider before buying a stock?')">
+                    <div>
+                        <div class="card-tag">Think Risk-First</div>
+                        <div class="card-text">What risks should I consider before buying a stock?</div>
+                    </div>
+                    <div class="card-arrow">↘</div>
                 </div>
-                <div class="card-arrow">↘</div>
             </div>
         </div>
+
+        <!-- चैट आउटपुट एरिया -->
+        <div id="chat-output" class="chat-output-area"></div>
     </div>
 
-    <!-- बॉटम कंट्रोल्स बार -->
+    <!-- इनपुट फूटर -->
     <div class="footer-container">
         <div class="input-box-wrapper">
-            <input type="text" placeholder="Command, boss..." class="main-input">
-            
+            <input type="text" id="user-input" placeholder="Command, boss..." class="main-input" onkeypress="if(event.key === 'Enter') handleSend()">
             <div class="action-row">
                 <div class="info-tags">
                     <span>⌘ Enter to send</span>
@@ -253,16 +269,44 @@
                 </div>
                 <div class="buttons-group">
                     <button class="mic-btn">🎙️</button>
-                    <button class="send-btn">↑</button>
+                    <button class="send-btn" onclick="handleSend()">↑</button>
                 </div>
             </div>
         </div>
-
         <div class="disclaimer-section">
             <p>🛡️ Your chats stay on this device</p>
             <p>✨ Market guidance is educational, not live market data or financial advice.</p>
         </div>
     </div>
 
-</body>
-</html>
+    <!-- एआई चालू करने वाली मुख्य स्क्रिप्ट -->
+    <script>
+        function setCommand(text) {
+            document.getElementById('user-input').value = text;
+        }
+
+        async function handleSend() {
+            const inputEl = document.getElementById('user-input');
+            const chatOutput = document.getElementById('chat-output');
+            const welcomeScreen = document.getElementById('welcome-screen');
+            const query = inputEl.value.trim();
+            
+            if (!query) return;
+
+            // वेलकम यूआई को छिपाएं
+            if (welcomeScreen) welcomeScreen.style.display = 'none';
+
+            // यूजर का मैसेज स्क्रीन पर जोड़ें
+            const userDiv = document.createElement('div');
+            userDiv.className = 'message user-msg';
+            userDiv.innerText = query;
+            chatOutput.appendChild(userDiv);
+            inputEl.value = '';
+
+            // लोडिंग इंडिकेटर
+            const aiDiv = document.createElement('div');
+            aiDiv.className = 'message ai-msg';
+            aiDiv.innerText = "Boss, Sunday AI सोच रहा है...";
+            chatOutput.appendChild(aiDiv);
+
+            try {
