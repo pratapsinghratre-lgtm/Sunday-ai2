@@ -12,7 +12,7 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
         body {
-            background: linear-gradient(180deg, #0f051d 0%, #05020a 100%);
+            background: linear-gradient(180deg, #05140b 0%, #020a05 100%);
             color: #e5e7eb;
             min-height: 100vh;
             display: flex;
@@ -27,6 +27,7 @@
             text-align: center;
             flex: 1;
         }
+        /* बॉस, यह रहा आपका शानदार गोल ग्रीन लोगो */
         .nucleus {
             position: relative;
             width: 80px;
@@ -40,17 +41,18 @@
             position: absolute;
             width: 100%;
             height: 100%;
-            background: #ea384c;
+            background: #10b981;
             border-radius: 50%;
             filter: blur(20px);
-            opacity: 0.3;
+            opacity: 0.4;
         }
         .nucleus-core {
-            width: 40px;
-            height: 40px;
-            background: linear-gradient(135deg, #ff5f6d, #ffc371);
+            width: 45px;
+            height: 45px;
+            background: linear-gradient(135deg, #10b981, #059669);
             border-radius: 50%;
-            box-shadow: 0 0 20px #ea384c;
+            box-shadow: 0 0 25px #10b981;
+            border: 2px solid rgba(255, 255, 255, 0.2);
         }
         h1 {
             font-size: 42px;
@@ -59,7 +61,7 @@
             margin-bottom: 12px;
             letter-spacing: -1px;
         }
-        h1 span { color: #ea384c; }
+        h1 span { color: #10b981; }
         .subtitle {
             font-size: 16px;
             color: #9ca3af;
@@ -90,12 +92,12 @@
             line-height: 1.5;
         }
         .user-msg {
-            background: #ea384c;
+            background: #10b981;
             color: white;
             align-self: flex-end;
         }
         .ai-msg {
-            background: rgba(255, 255, 255, 0.05);
+            background: rgba(255, 255, 255, 0.04);
             border: 1px solid rgba(255, 255, 255, 0.08);
             color: #e5e7eb;
             align-self: flex-start;
@@ -107,20 +109,25 @@
             text-align: left;
         }
         .glass-card {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.06);
             border-radius: 12px;
             padding: 16px;
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
             cursor: pointer;
+            transition: all 0.25s ease;
+        }
+        .glass-card:hover {
+            border-color: rgba(16, 185, 129, 0.4);
+            background: rgba(255, 255, 255, 0.04);
         }
         .card-tag {
             font-size: 10px;
             font-weight: 700;
             text-transform: uppercase;
-            color: #ea384c;
+            color: #10b981;
             letter-spacing: 1px;
         }
         .card-text {
@@ -129,15 +136,15 @@
             margin-top: 4px;
             font-weight: 500;
         }
-        .card-arrow { color: #ea384c; font-size: 18px; font-weight: bold; }
+        .card-arrow { color: #10b981; font-size: 18px; font-weight: bold; }
         .footer-container {
             max-width: 500px;
             width: 100%;
             margin: 24px auto 0 auto;
         }
         .input-box-wrapper {
-            background: #120c1f;
-            border: 1px solid #221a30;
+            background: #09140e;
+            border: 1px solid #142c1f;
             border-radius: 16px;
             padding: 12px;
             display: flex;
@@ -162,24 +169,10 @@
             border-top: 1px solid rgba(255,255,255,0.02);
             padding-top: 8px;
         }
-        .info-tags {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 11px;
-            color: #4b5563;
-        }
-        .lang-badge {
-            background: #1a1329;
-            border: 1px solid #2b1f42;
-            color: #9ca3af;
-            padding: 2px 8px;
-            border-radius: 6px;
-        }
         .buttons-group { display: flex; align-items: center; gap: 8px; }
         .mic-btn { background: transparent; border: none; font-size: 16px; cursor: pointer; }
         .send-btn {
-            background: #ea384c;
+            background: #10b981;
             color: #ffffff;
             border: none;
             width: 32px;
@@ -191,33 +184,20 @@
             display: flex;
             align-items: center;
             justify-content: center;
-        }
-        .disclaimer-section {
-            text-align: center;
-            margin-top: 12px;
-            font-size: 10px;
-            color: #4b5563;
-            line-height: 1.5;
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
         }
     </style>
-    <!-- जेमिनी एआई को सीधे फ्रंटएंड में लोड करने के लिए आधिकारिक स्क्रिप्ट मॉड्यूल -->
-    <script type="importmap">
-      {
-        "imports": {
-          "@google/generative-ai": "https://esm.run"
-        }
-      }
-    </script>
 </head>
 <body>
 
     <div class="main-container">
         <div id="welcome-screen">
+            <!-- ग्रीन ग्लोइंग गोल मार्क लोगो -->
             <div class="nucleus">
                 <div class="nucleus-glow"></div>
                 <div class="nucleus-core"></div>
             </div>
-            <h1>Let's get clear<span>.</span></h1>
+            <h1>SUNDAY AI<span>.</span></h1>
             <p class="subtitle">A calmer way to think through a trade.</p>
             <p class="desc">Ask Sunday to explain market moves, compare trading concepts, or pressure-test the risks behind an idea.</p>
             
@@ -229,13 +209,6 @@
                     </div>
                     <div class="card-arrow">↘</div>
                 </div>
-                <div class="glass-card" onclick="setCommand('What risks should I consider before buying a stock?')">
-                    <div>
-                        <div class="card-tag">Think Risk-First</div>
-                        <div class="card-text">What risks should I consider before buying a stock?</div>
-                    </div>
-                    <div class="card-arrow">↘</div>
-                </div>
             </div>
         </div>
 
@@ -244,60 +217,63 @@
 
     <div class="footer-container">
         <div class="input-box-wrapper">
-            <input type="text" id="user-input" placeholder="Command, boss..." class="main-input" onkeypress="if(event.key === 'Enter') handleSend()">
+            <input type="text" id="chat-input" placeholder="Command, boss..." class="main-input">
             <div class="action-row">
-                <div class="info-tags">
-                    <span>⌘ Enter to send</span>
-                    <span class="lang-badge">Hindi / Hinglish ▾</span>
-                </div>
                 <div class="buttons-group">
                     <button class="mic-btn">🎙️</button>
-                    <button class="send-btn" onclick="handleSend()">↑</button>
+                    <button class="send-btn" id="send-btn">↑</button>
                 </div>
             </div>
         </div>
-        <div class="disclaimer-section">
-            <p>🛡️ Your chats stay on this device</p>
-            <p>✨ Market guidance is educational, not live market data or financial advice.</p>
-        </div>
     </div>
 
-    <script type="module">
-        import { GoogleGenAI } from "@google/generative-ai";
-
-        // बॉस, अपनी असली जेमिनी एपीआई की (API Key) नीचे खाली जगह '' में डाल दें
-        const API_KEY = ''; 
-
-        window.setCommand = function(text) {
-            document.getElementById('user-input').value = text;
+    <script>
+        function setCommand(text) {
+            document.getElementById('chat-input').value = text;
         }
 
-        window.handleSend = async function() {
-            const inputEl = document.getElementById('user-input');
+        // आपका ओरिजिनल और सुरक्षित एआई चैट लॉजिक
+        document.getElementById('send-btn').addEventListener('click', async () => {
+            const inputField = document.getElementById('chat-input');
             const chatOutput = document.getElementById('chat-output');
             const welcomeScreen = document.getElementById('welcome-screen');
-            const query = inputEl.value.trim();
-            
-            if (!query) return;
+            const userText = inputField.value.trim();
+
+            if (!userText) return;
 
             if (welcomeScreen) welcomeScreen.style.display = 'none';
 
-            const userDiv = document.createElement('div');
-            userDiv.className = 'message user-msg';
-            userDiv.innerText = query;
-            chatOutput.appendChild(userDiv);
-            inputEl.value = '';
+            const userMessage = document.createElement('div');
+            userMessage.className = 'message user-msg';
+            userMessage.innerText = userText;
+            chatOutput.appendChild(userMessage);
+            inputField.value = '';
 
-            const aiDiv = document.createElement('div');
-            aiDiv.className = 'message ai-msg';
-            aiDiv.innerText = "Boss, Sunday AI सोच रहा है...";
-            chatOutput.appendChild(aiDiv);
-            window.scrollTo(0, document.body.scrollHeight);
-
-            if (!API_KEY) {
-                aiDiv.innerText = "बॉस, कोड बिल्कुल सही काम कर रहा है! बस स्क्रिप्ट के अंदर लाइन नंबर 176 पर अपनी Gemini API Key डाल दीजिए, फिर जवाब आना शुरू हो जाएगा।";
-                return;
-            }
+            const aiMessage = document.createElement('div');
+            aiMessage.className = 'message ai-msg';
+            aiMessage.innerText = 'Boss, Sunday AI सोच रहा है...';
+            chatOutput.appendChild(aiMessage);
 
             try {
-        
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: userText })
+                });
+                const data = await response.json();
+                aiMessage.innerText = data.reply || 'कोई जवाब नहीं मिला, बॉस।';
+            } catch (error) {
+                aiMessage.innerText = 'कनेक्शन एरर आया बॉस, कृपया दोबारा ट्राई करें।';
+            }
+            window.scrollTo(0, document.body.scrollHeight);
+        });
+
+        document.getElementById('chat-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('send-btn').click();
+            }
+        });
+    </script>
+</body>
+                             </html>
+                             
