@@ -22,7 +22,6 @@ Always communicate in a very friendly mix of Hindi and English (Hinglish), keepi
 """
 
 def get_live_price(query_text):
-    """बिना किसी हैवी लाइब्रेरी के वियर्सेल पर लाइव प्राइस फेच करने का सेफ तरीका"""
     try:
         words = query_text.upper().split()
         mapping = {
@@ -30,13 +29,11 @@ def get_live_price(query_text):
             "ETH": "ETHUSD", "ETHEREUM": "ETHUSD",
             "DOGE": "DOGEUSD", "SOLANA": "SOLUSD"
         }
-        
         target_symbol = None
         for word in words:
             if word in mapping:
                 target_symbol = mapping[word]
                 break
-                
         if target_symbol:
             url = f"https://binance.com{target_symbol}"
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -44,12 +41,11 @@ def get_live_price(query_text):
                 data = json.loads(response.read().decode())
                 price = float(data['price'])
                 return f"[LIVE DATA FETCHED: Current price of {target_symbol} is \${price:.2f} USD]"
-    except Exception as e:
-        print("API Error:", str(e))
+    except Exception:
         return ""
     return ""
 
-# यहाँ से सुंदर डार्क इंटरफ़ेस शुरू होता है, कोई भी फालतू टेक्स्ट बाहर नहीं दिखेगा
+# HTML और CSS को बिल्कुल अलग रखा है ताकि स्क्रीन पर लीक न हो
 HTML_CODE = """
 <!DOCTYPE html>
 <html lang="en">
@@ -59,7 +55,7 @@ HTML_CODE = """
     <title>Sunday AI</title>
     <style>
         body { background: #0b0e14; color: #e2e8f0; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; }
-        .chat-container { width: 100%; max-width: 500px; background: #111622; border-radius: 20px; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.7); display: flex; flex-direction: column; height: 85vh; border: 1px solid #1e293b; }
+        .chat-container { width: 100%; max-width: 400px; background: #111622; border-radius: 20px; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.7); display: flex; flex-direction: column; height: 85vh; border: 1px solid #1e293b; }
         .header { text-align: center; font-size: 22px; font-weight: bold; margin-bottom: 20px; color: #38bdf8; letter-spacing: 1px; }
         .messages { flex: 1; overflow-y: auto; padding: 10px; margin-bottom: 20px; }
         .msg { margin-bottom: 15px; padding: 12px 16px; border-radius: 16px; max-width: 85%; line-height: 1.5; font-size: 15px; }
@@ -110,7 +106,7 @@ HTML_CODE = """
         function showPreview() {
             const input = document.getElementById('imageInput');
             if (input.files && input.files[0]) {
-                document.getElementById('filePreview').innerText = `Chart Selected: ${input.files[0].name} 📈`;
+                document.getElementById('filePreview').innerText = "Chart Selected: " + input.files[0].name + " 📈";
             }
         }
 
@@ -151,7 +147,7 @@ HTML_CODE = """
                 const response = await fetch('/chat', { method: 'POST', body: formData });
                 const data = await response.json();
                 
-                document.getElementById('loading').remove();
+                if(document.getElementById('loading')) document.getElementById('loading').remove();
 
                 if (data.response) {
                     chatBox.innerHTML += `<div class="msg ai">${data.response}</div>`;
@@ -161,7 +157,7 @@ HTML_CODE = """
                     chatBox.innerHTML += `<div class="msg ai">Maaf kijiyega Boss, error aaya: ${data.error}</div>`;
                 }
             } catch (err) {
-                document.getElementById('loading').remove();
+                if(document.getElementById('loading')) document.getElementById('loading').remove();
                 chatBox.innerHTML += `<div class="msg ai">Server se connection toot gaya, Boss!</div>`;
             }
         }
