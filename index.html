@@ -1,22 +1,58 @@
 import os
+import yfinance as yf
 from flask import Flask, request, jsonify, render_template_string
 from google import genai
 from google.genai import types
 
 app = Flask(__name__)
 
-# अपनी Gemini API Key यहाँ डालें (या Environment Variable का उपयोग करें)
-# Replit में Secrets में GEMINI_API_KEY नाम से सेव करें
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "YOUR_ACTUAL_API_KEY_HERE")
 client = genai.Client(api_key=GEMINI_API_KEY)
 
-# Sunday AI को फ्रेंडली स्वभाव देने के लिए निर्देश
+# बॉस बोलने, ट्रेडिंग चार्ट एनालिसिस और लाइव प्राइस की सटीक जानकारी देने के लिए सिस्टम इंस्ट्रक्शन
 SYSTEM_INSTRUCTION = """
-You are 'Sunday AI', a highly intelligent, super friendly, and empathetic personal assistant. 
-You talk like a supportive friend. Keep your tone warm, enthusiastic, and casual.
-You must perfectly understand Hinglish, Hindi, and English. Respond in the language the user prefers, 
-but majorly use a mix of friendly Hindi/Hinglish (like a close peer) unless asked otherwise.
+You are 'Sunday AI', a highly intelligent, premium, and expert trading personal assistant.
+You MUST always address the user as 'Boss' in every single response. Keep your tone extremely respectful, loyal, and supportive.
+Your core expertise includes Stock & Crypto Technical Analysis, Chart Reading, and Live Price interpretation.
+When Boss uploads a chart image:
+1. Carefully analyze candlestick patterns (like Hammer, Doji, Marubozu, Engulfing).
+2. Point out support, resistance, and current market trends.
+When live price data is provided in the chat context, integrate it smartly into your advice.
+Always communicate in a very friendly mix of Hindi and English (Hinglish), keeping 'Boss' at the center of the conversation.
 """
+
+def get_live_price(query_text):
+    """यूजर के मैसेज से स्टॉक/क्रिप्टो का सिंबल ढूंढकर लाइव प्राइस निकालने वाला फंक्शन"""
+    try:
+        # कुछ कॉमन वर्ड्स को सिंबल्स में बदलने का लॉजिक
+        words = query_text.upper().split()
+        mapping = {
+            "BITCOIN": "BTC-USD", "BTC": "BTC-USD",
+            "ETH": "ETH-USD", "ETHEREUM": "ETH-USD",
+            "DOGE": "DOGE-USD", "SOLANA": "SOL-USD",
+            "RELIANCE": "RELIANCE.NS", "TATA": "TATAMOTORS.NS",
+            "NIFTY": "^NSEI", "CRUDE": "CL=F", "GOLD": "GC=F"
+        }
+        
+        target_symbol = None
+        for word in words:
+            if word in mapping:
+                target_symbol = mapping[word]
+                break
+            # अगर सीधा सिंबल लिखा हो (जैसे AAPL, TSLA)
+            if len(word) >= 3 and word.isalpha() and not word.isdigit():
+                target_symbol = word
+                
+        if target_symbol:
+            ticker = yf.Ticker(target_symbol)
+            todays_data = ticker.history(period='1d')
+            if not todays_data.empty:
+                live_price = todays_data['Close'].iloc[-1]
+                currency = "INR" if ".NS" in target_symbol or "^" in target_symbol else "USD"
+                return f"[LIVE DATA FETCHED: Current price of {target_symbol} is {live_price:.2f} {currency}]"
+    except Exception:
+        return ""
+    return ""
 
 @app.route('/')
 def home():
@@ -27,9 +63,16 @@ def chat():
     user_text = request.form.get('text', '')
     image_file = request.files.get('image')
     
-    contents = [user_text]
+    # लाइव प्राइस डेटा बैकग्राउंड में निकालें
+    live_market_info = get_live_price(user_text)
     
-    # अगर यूजर ने फोटो अपलोड की है
+    # जेमिनी को भेजने के लिए प्रॉम्ट तैयार करें
+    full_prompt = user_text
+    if live_market_info:
+        full_prompt += f"\n\nContext to help you answer: {live_market_info}"
+        
+    contents = [full_prompt]
+    
     if image_file and image_file.filename != '':
         image_data = image_file.read()
         image_part = types.Part.from_bytes(
@@ -39,20 +82,19 @@ def chat():
         contents.append(image_part)
 
     try:
-        # Gemini 2.5 Flash मॉडल का उपयोग (यह सबसे तेज़ और मल्टीमोडल है)
         response = client.models.generate_content(
             model='gemini-2.5-flash',
             contents=contents,
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_INSTRUCTION,
-                temperature=0.7
+                temperature=0.3 # ट्रेडिंग डेटा और भाव बिल्कुल सटीक बताने के लिए तापमान कम रखा है
             )
         )
         return jsonify({'response': response.text})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# HTML कोड को इसी फ़ाइल में रखने के लिए नीचे वेरिएबल बनाया है
+# बिल्कुल पहले जैसा डार्क, प्रीमियम और साफ-सुथरा UI वॉलपेपर
 HTML_CODE = """
 <!DOCTYPE html>
 <html lang="en">
@@ -61,26 +103,28 @@ HTML_CODE = """
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sunday AI</title>
     <style>
-        body { background: #0f1219; color: #e2e8f0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; }
-        .chat-container { width: 100%; max-width: 500px; background: #181d29; border-radius: 20px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); display: flex; flex-direction: column; height: 80vh; }
-        .header { text-align: center; font-size: 24px; font-weight: bold; margin-bottom: 20px; color: #38bdf8; }
-        .messages { flex: 1; overflow-y: auto; padding: 10px; margin-bottom: 20px; border-bottom: 1px solid #2d3748; }
-        .msg { margin-bottom: 15px; padding: 10px 15px; border-radius: 15px; max-width: 80%; line-height: 1.4; }
+        body { background: #0b0e14; color: #e2e8f0; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; }
+        .chat-container { width: 100%; max-width: 500px; background: #111622; border-radius: 20px; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.7); display: flex; flex-direction: column; height: 85vh; border: 1px solid #1e293b; }
+        .header { text-align: center; font-size: 22px; font-weight: bold; margin-bottom: 20px; color: #38bdf8; letter-spacing: 1px; }
+        .messages { flex: 1; overflow-y: auto; padding: 10px; margin-bottom: 20px; }
+        .msg { margin-bottom: 15px; padding: 12px 16px; border-radius: 16px; max-width: 85%; line-height: 1.5; font-size: 15px; }
         .user { background: #0284c7; color: white; align-self: flex-end; margin-left: auto; border-bottom-right-radius: 0; }
-        .ai { background: #1e293b; color: #e2e8f0; border-bottom-left-radius: 0; }
-        .input-area { display: flex; gap: 10px; align-items: center; }
-        input[type="text"] { flex: 1; padding: 12px; border-radius: 25px; border: none; background: #2d3748; color: white; outline: none; }
-        button, label.upload-btn { background: #38bdf8; color: #0f1219; border: none; padding: 12px 20px; border-radius: 25px; cursor: pointer; font-weight: bold; display: flex; align-items: center; justify-content: center; }
-        button:hover, label.upload-btn:hover { background: #0ea5e9; }
+        .ai { background: #1e293b; color: #e2e8f0; border-bottom-left-radius: 0; border: 1px solid #334155; }
+        .input-area { display: flex; gap: 10px; align-items: center; background: #1a202c; padding: 8px 12px; border-radius: 30px; border: 1px solid #2d3748; }
+        input[type="text"] { flex: 1; padding: 10px; border: none; background: transparent; color: white; outline: none; font-size: 15px; }
+        button, label.upload-btn { background: #1e293b; color: #38bdf8; border: 1px solid #334155; padding: 10px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 42px; height: 42px; font-size: 18px; transition: 0.2s; }
+        button:hover, label.upload-btn:hover { background: #334155; color: white; }
+        .send-btn { background: #38bdf8; color: #0b0e14; border: none; }
+        .send-btn:hover { background: #0ea5e9; color: white; }
         input[type="file"] { display: none; }
-        .preview { font-size: 12px; color: #a0aec0; margin-top: 5px; text-align: center; }
+        .preview { font-size: 12px; color: #38bdf8; margin-bottom: 10px; text-align: center; font-style: italic; }
     </style>
 </head>
 <body>
     <div class="chat-container">
-        <div class="header">Sunday AI 🎙️📷</div>
+        <div class="header">Sunday AI 🎙️📈</div>
         <div class="messages" id="chatBox">
-            <div class="msg ai">Hello Dost! Main Sunday AI hoon. Aaj hum kis baare mein baat karne wale hain? Koi photo hai toh woh bhi bhej sakte ho!</div>
+            <div class="msg ai">Pranam Boss! Main Sunday AI hoon. Market एकदम लाइव है! आप मुझसे "Bitcoin price" या किसी भी स्टॉक का लाइव भाव पूछ सकते हैं, या फिर सीधे कैंडलस्टिक चार्ट की फोटो भेजकर एनालिसिस करवा सकते हैं!</div>
         </div>
         <div class="preview" id="filePreview"></div>
         <div class="input-area">
@@ -89,36 +133,34 @@ HTML_CODE = """
             </label>
             <button onclick="startVoice()">🎙️</button>
             <input type="text" id="userInput" placeholder="Sir, yahan likhiye ya boliye...">
-            <button onclick="sendMessage()">➡️</button>
+            <button class="send-btn" onclick="sendMessage()">➡️</button>
         </div>
     </div>
 
     <script>
-        // आवाज़ से इनपुट लेने के लिए (Speech to Text)
         const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-        recognition.lang = 'hi-IN'; // हिंदी और इंग्लिश दोनों मिक्स समझ सकता है
+        recognition.lang = 'hi-IN';
         recognition.interimResults = false;
 
         function startVoice() {
-            document.getElementById('userInput').placeholder = "Sun raha hoon...";
+            document.getElementById('userInput').placeholder = "Sun raha hoon, Boss...";
             recognition.start();
         }
 
         recognition.onresult = function(event) {
-            const transcript = event.results[0][0].transcript;
-            document.getElementById('userInput').value = transcript;
+            document.getElementById('userInput').value = event.results.transcript;
             document.getElementById('userInput').placeholder = "Sir, yahan likhiye...";
         };
 
         function showPreview() {
-            const file = document.getElementById('imageInput').files[0];
-            if (file) document.getElementById('filePreview').innerText = `Selected Photo: ${file.name}`;
+            const file = document.getElementById('imageInput').files;
+            if (file) document.getElementById('filePreview').innerText = `Chart Selected: ${file.name} 📈`;
         }
 
-        // AI की आवाज़ (Text to Speech)
         function speak(text) {
+            window.speechSynthesis.cancel();
             const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'hi-IN'; // फ्रेंडली इंडियन टोन में बोलने के लिए
+            utterance.lang = 'hi-IN';
             window.speechSynthesis.speak(utterance);
         }
 
@@ -127,27 +169,26 @@ HTML_CODE = """
             const fileInput = document.getElementById('imageInput');
             const chatBox = document.getElementById('chatBox');
             
-            if (!textInput.value.trim() && !fileInput.files[0]) return;
+            if (!textInput.value.trim() && !fileInput.files) return;
 
-            // User का मैसेज UI में जोड़ें
             let userText = textInput.value;
-            chatBox.innerHTML += `<div class="msg user">${userText || "Sent a photo 📷"}</div>`;
+            let hasFile = fileInput.files;
+            
+            chatBox.innerHTML += `<div class="msg user">${userText || "Analyzing Chart Image... 📈"}</div>`;
             chatBox.scrollTop = chatBox.scrollHeight;
 
-            // Form Data तैयार करें
             const formData = new FormData();
             formData.append('text', userText);
-            if (fileInput.files[0]) {
-                formData.append('image', fileInput.files[0]);
+            if (hasFile) {
+                formData.append('image', fileInput.files);
             }
 
-            // इनपुट क्लियर करें
             textInput.value = '';
             fileInput.value = '';
             document.getElementById('filePreview').innerText = '';
 
-            // Loading State
-            chatBox.innerHTML += `<div class="msg ai" id="loading">Thinking...</div>`;
+            chatBox.innerHTML += `<div class="msg ai" id="loading">Boss, Market scan kar raha hoon... ⏳</div>`;
+            chatBox.scrollTop = chatBox.scrollHeight;
 
             try {
                 const response = await fetch('/chat', { method: 'POST', body: formData });
@@ -156,24 +197,16 @@ HTML_CODE = """
                 document.getElementById('loading').remove();
 
                 if (data.response) {
-                    // AI का जवाब UI में दिखाएं
                     chatBox.innerHTML += `<div class="msg ai">${data.response}</div>`;
                     chatBox.scrollTop = chatBox.scrollHeight;
-                    // AI उस जवाब को बोलकर सुनाएगा
                     speak(data.response);
                 } else {
-                    chatBox.innerHTML += `<div class="msg ai">Error: ${data.error}</div>`;
+                    chatBox.innerHTML += `<div class="msg ai">Maaf kijiyega Boss, error aaya: ${data.error}</div>`;
                 }
             } catch (err) {
                 document.getElementById('loading').remove();
-                chatBox.innerHTML += `<div class="msg ai">Connection fail ho gaya dost!</div>`;
+                chatBox.innerHTML += `<div class="msg ai">Server se connection toot gaya, Boss!</div>`;
             }
         }
     </script>
-</body>
-</html>
-"""
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
     
