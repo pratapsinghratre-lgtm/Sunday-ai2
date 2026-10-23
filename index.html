@@ -26,7 +26,7 @@
         button, label.upload-btn { background: #1e293b; color: #38bdf8; border: 1px solid #334155; padding: 10px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 42px; height: 42px; font-size: 18px; }
         .send-btn { background: #38bdf8; color: #0b0e14; border: none; }
         input[type="file"] { display: none; }
-        .status-text { font-size: 12px; color: #64748b; text-align: center; margin-bottom: 10px; font-style: italic; }
+        .status-text { font-size: 12px; color: #38bdf8; text-align: center; margin-bottom: 10px; font-style: italic; }
     </style>
 </head>
 <body>
@@ -57,14 +57,15 @@
     </div>
 
     <script>
-        // Vercel Environment Variables से की उठाने का प्रयास, अन्यथा लोकल विंडो से
+        // ⚠️ ध्यान दें बॉस: यहाँ नीचे वाले कोट्स के बीच में अपनी असली Gemini API Key (जैसे AIzaSy...) ज़रूर पेस्ट करें!
         const GEMINI_API_KEY = "YOUR_ACTUAL_API_KEY_HERE"; 
 
         const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
         recognition.lang = 'hi-IN';
         recognition.interimResults = false;
 
-        let base64Image = "";
+        let base64DataOnly = "";
+        let imageMimeType = "";
 
         function startVoice() {
             document.getElementById('statusText').innerText = "LISTENING · Tap arrow when you're done";
@@ -72,7 +73,7 @@
         }
 
         recognition.onresult = function(event) {
-            document.getElementById('userInput').value = event.results.transcript;
+            document.getElementById('userInput').value = event.results[0][0].transcript;
             document.getElementById('statusText').innerText = "";
         };
 
@@ -82,9 +83,11 @@
                 const file = input.files[0];
                 document.getElementById('statusText').innerText = "Document Selected: " + file.name + " 📷";
                 
+                imageMimeType = file.type;
                 const reader = new FileReader();
                 reader.onloadend = function() {
-                    base64Image = reader.result.split(',')[1];
+                    // सिर्फ़ प्योर बेस64 डेटा निकालने के लिए स्प्लिट किया
+                    base64DataOnly = reader.result.split(',')[1];
                 }
                 reader.readAsDataURL(file);
             }
@@ -109,7 +112,7 @@
             
             let userText = textInput.value.trim();
             
-            if (!userText && !base64Image) return;
+            if (!userText && !base64DataOnly) return;
 
             if(frontView) frontView.style.display = 'none';
             if(chatBox) chatBox.style.display = 'block';
@@ -123,43 +126,44 @@
             chatBox.innerHTML += `<div class="msg ai" id="loading">Ji Boss, check kar raha hoon... ⏳</div>`;
             chatBox.scrollTop = chatBox.scrollHeight;
 
-            // सीधे फ्रंटएंड से जेमिनी API को कॉल करने का सुरक्षित सिस्टम प्रॉम्ट लॉजिक
-            const systemPrompt = "You are 'Sunday AI', a super-intelligent assistant (1000 AIs power). Always call the user 'Boss'. Expert in Trading chart analysis and CSC document form filling. Speak in Hinglish.";
+            // 1000 AI की ताकत वाला सिस्टम निर्देश प्रॉम्ट के साथ मर्ज किया
+            const systemPrompt = "You are 'Sunday AI', a super-intelligent personal assistant with the power of 1000 AIs combined. You MUST always address the user as 'Boss' in every single response. Keep your tone extremely respectful, loyal, and supportive. Do NOT use traditional greetings like 'Namaste' or 'Pranam'. You are an expert in Trading technical analysis (candlestick chart reading) and CSC Choice center document form filling automation. Speak in a friendly mix of Hindi and English (Hinglish). Keep answers sharp.";
             
-            let contentsPayload = [];
-            if (base64Image) {
-                contentsPayload.push({
-                    inlineData: { mimeType: "image/jpeg", data: base64Image }
+            let partsArray = [];
+            
+            // अगर फोटो सेलेक्ट की गई है तो जेमिनी के स्टैंडर्ड फॉर्मेट में जोड़ें
+            if (base64DataOnly) {
+                partsArray.push({
+                    inlineData: {
+                        mimeType: imageMimeType || "image/jpeg",
+                        data: base64DataOnly
+                    }
                 });
             }
-            contentsPayload.push({ text: systemPrompt + "\n\nUser Question: " + userText });
+            
+            partsArray.push({ text: systemPrompt + "\n\nUser Question: " + userText });
 
             try {
-                // जेमिनी का सबसे लेटेस्ट डायरेक्ट एपीआई एंडपॉइंट
+                // जेमिनी 2.5 फ़्लैश का बिल्कुल सटीक डायरेक्ट एपीआई कॉल स्ट्रक्चर
                 const response = await fetch(`https://googleapis.com{GEMINI_API_KEY}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [{ parts: contentsPayload }] })
+                    body: JSON.stringify({ contents: [{ parts: partsArray }] })
                 });
                 
                 const data = await response.json();
                 if(document.getElementById('loading')) document.getElementById('loading').remove();
 
-                const aiResponse = data.candidates[0].content.parts[0].text;
-
-                if (aiResponse) {
+                // जेमिनी एपीआई के रिस्पांस पाथ को पूरी तरह फिक्स किया
+                if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts[0].text) {
+                    const aiResponse = data.candidates[0].content.parts[0].text;
                     chatBox.innerHTML += `<div class="msg ai">${aiResponse}</div>`;
                     chatBox.scrollTop = chatBox.scrollHeight;
                     speak(aiResponse);
                 } else {
-                    chatBox.innerHTML += `<div class="msg ai">Error: Data format matching fail, Boss!</div>`;
+                    chatBox.innerHTML += `<div class="msg ai">Boss, API Key invalid hai ya data fetch nahi ho paya!</div>`;
                 }
             } catch (err) {
                 if(document.getElementById('loading')) document.getElementById('loading').remove();
-                chatBox.innerHTML += `<div class="msg ai">Server connection lost or API key missing, Boss!</div>`;
-            }
-            base64Image = ""; // रीसेट इमेज
-        }
-    </script>
-</body>
-</html>
+                chatBox.innerHTML += `<div class="msg ai">Server connection error, please check internet or API key, Boss!</div>`;
+        
