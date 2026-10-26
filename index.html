@@ -1,101 +1,129 @@
-Sunday AI - Trading & CSC Master
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sunday AI - Trading & CSC Master</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+        body { background: #121212; color: #e0e0e0; display: flex; flex-direction: column; height: 100vh; }
+        header { background: #1f1f1f; padding: 15px; text-align: center; border-bottom: 2px solid #00e676; font-size: 1.2rem; font-weight: bold; color: #00e676; }
+        #chatBox { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
+        .message { max-width: 80%; padding: 12px 16px; border-radius: 8px; line-height: 1.5; font-size: 1rem; }
+        .user { background: #00e676; color: #000; align-self: flex-end; border-bottom-right-radius: 0; }
+        .bot { background: #2a2a2a; color: #e0e0e0; align-self: flex-start; border-bottom-left-radius: 0; border: 1px solid #3a3a3a; }
+        #loading { color: #888; font-style: italic; display: none; padding-left: 10px; }
+        #inputArea { background: #1f1f1f; padding: 15px; display: flex; gap: 10px; align-items: center; border-top: 1px solid #2a2a2a; }
+        input[type="text"] { flex: 1; padding: 12px; background: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 6px; color: #fff; font-size: 1rem; }
+        input[type="text"]:focus { border-color: #00e676; outline: none; }
+        .file-label { background: #3a3a3a; padding: 12px; border-radius: 6px; cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; }
+        input[type="file"] { display: none; }
+        button { background: #00e676; color: #000; border: none; padding: 12px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 1rem; }
+        button:hover { background: #00c853; }
+    </style>
+</head>
+<body>
 
-* { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
-body { background: #121212; color: #e0e0e0; display: flex; flex-direction: column; height: 100vh; }
-header { background: #1f1f1f; padding: 15px; text-align: center; border-bottom: 2px solid #00e676; font-size: 1.2rem; font-weight: bold; color: #00e676; }
-#chatBox { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
-.message { max-width: 80%; padding: 12px 16px; border-radius: 8px; line-height: 1.5; font-size: 1rem; }
-.user { background: #00e676; color: #000; align-self: flex-end; border-bottom-right-radius: 0; }
-.bot { background: #2a2a2a; color: #e0e0e0; align-self: flex-start; border-bottom-left-radius: 0; border: 1px solid #3a3a3a; }
-#loading { color: #888; font-style: italic; display: none; padding-left: 10px; }
-#inputArea { background: #1f1f1f; padding: 15px; display: flex; gap: 10px; align-items: center; border-top: 1px solid #2a2a2a; }
-input[type="text"] { flex: 1; padding: 12px; background: #2a2a2a; border: 1px solid #3a3a3a; border-radius: 6px; color: #fff; font-size: 1rem; }
-input[type="text"]:focus { border-color: #00e676; outline: none; }
-.file-label { background: #3a3a3a; padding: 12px; border-radius: 6px; cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; }
-input[type="file"] { display: none; }
-button { background: #00e676; color: #000; border: none; padding: 12px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 1rem; }
-button:hover { background: #00c853; }
+<header>Sunday AI Bot 🤖</header>
 
+<div id="chatBox">
+    <div class="message bot">जी बॉस! बोलिए, आज मार्केट का कौन सा चार्ट देखना है, कैंडलस्टिक पैटर्न समझना है या CSC का कोई काम निपटाना है? आपका वॉयस असिस्टेंट पूरी तरह तैयार है!</div>
+    <div id="loading">डेटा प्रोसेस हो रहा है, बॉस...</div>
+</div>
 
-Sunday AI Bot 🤖
-जी बॉस! बोलिए, आज मार्केट का कौन सा चार्ट देखना है, कैंडलस्टिक पैटर्न समझना है या CSC का कोई काम निपटाना है? आपका वॉयस असिस्टेंट पूरी तरह तैयार है!
-डेटा प्रोसेस हो रहा है, बॉस...
-📁
-भेजें
-const fileInput = document.getElementById('imageInput');
-const promptInput = document.getElementById('promptInput');
+<div id="inputArea">
+    <label for="imageInput" class="file-label">📁</label>
+    <input type="file" id="imageInput" accept="image/*">
+    <input type="text" id="promptInput" placeholder="अपना सवाल यहाँ लिखें बॉस...">
+    <button onclick="sendMessageToAI()">भेजें</button>
+</div>
+
+<script>
+const fileInput = document.getElementById('imageInput'); 
+const promptInput = document.getElementById('promptInput'); 
 const chatBox = document.getElementById('chatBox');
 const loadingText = document.getElementById('loading');
+
 function displayBotMessage(text) {
-const msg = document.createElement('div');
-msg.className = 'message bot';
-msg.innerText = text;
-chatBox.insertBefore(msg, loadingText);
-chatBox.scrollTop = chatBox.scrollHeight;
+    const msg = document.createElement('div');
+    msg.className = 'message bot';
+    msg.innerText = text;
+    chatBox.insertBefore(msg, loadingText);
+    chatBox.scrollTop = chatBox.scrollHeight;
 }
+
 function displayUserMessage(text) {
-const msg = document.createElement('div');
-msg.className = 'message user';
-msg.innerText = text;
-chatBox.insertBefore(msg, loadingText);
-chatBox.scrollTop = chatBox.scrollHeight;
+    const msg = document.createElement('div');
+    msg.className = 'message user';
+    msg.innerText = text;
+    chatBox.insertBefore(msg, loadingText);
+    chatBox.scrollTop = chatBox.scrollHeight;
 }
+
 function showLoadingStatus(show) {
-loadingText.style.display = show ? 'block' : 'none';
-chatBox.scrollTop = chatBox.scrollHeight;
+    loadingText.style.display = show ? 'block' : 'none';
+    chatBox.scrollTop = chatBox.scrollHeight;
 }
+
 async function sendMessageToAI() {
-const promptText = promptInput.value;
-let base64Image = null;
-let fileMimeType = null;
-if (!promptText.trim() && (!fileInput.files || !fileInput.files[0])) {
-return;
+    const promptText = promptInput.value;
+    let base64Image = null;
+    let fileMimeType = null;
+
+    if (!promptText.trim() && (!fileInput.files || !fileInput.files[0])) {
+        return;
+    }
+
+    if (promptText.trim()) {
+        displayUserMessage(promptText);
+        promptInput.value = '';
+    }
+
+    if (fileInput.files && fileInput.files[0]) {
+        displayUserMessage("📸 [फोटो अपलोड की गई]");
+        const file = fileInput.files[0];
+        fileMimeType = file.type;
+        base64Image = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const parts = reader.result.split(',');
+                if (parts.length > 1) {
+                    resolve(parts[1]);
+                } else {
+                    resolve(null);
+                }
+            };
+            reader.onerror = error => reject(error);
+            reader.readAsDataURL(file);
+        });
+        fileInput.value = '';
+    }
+
+    try {
+        showLoadingStatus(true);
+        const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: promptText, image: base64Image, mimeType: fileMimeType })
+        });
+        const data = await response.json();
+        if (data.reply) {
+            displayBotMessage(data.reply);
+            if ('speechSynthesis' in window) {
+                const cleanText = data.reply.replace(/[*#`]/g, '');
+                const utterance = new SpeechSynthesisUtterance(cleanText);
+                utterance.lang = 'hi-IN';
+                window.speechSynthesis.speak(utterance);
+            }
+        } else if (data.error) {
+            displayBotMessage("एरर आया बॉस: " + data.error);
+        }
+    } catch (err) {
+        displayBotMessage("सर्वर से कनेक्ट नहीं हो पाया बॉस। कृपया दोबारा प्रयास करें।");
+    } finally {
+        showLoadingStatus(false);
+    }
 }
-if (promptText.trim()) {
-displayUserMessage(promptText);
-promptInput.value = '';
-}
-if (fileInput.files && fileInput.files[0]) {
-displayUserMessage("📸 [फोटो अपलोड की गई]");
-const file = fileInput.files[0];
-fileMimeType = file.type;
-base64Image = await new Promise((resolve, reject) => {
-const reader = new FileReader();
-reader.onloadend = () => {
-const parts = reader.result.split(',');
-if (parts.length > 1) {
-resolve(parts[1]);
-} else {
-resolve(null);
-}
-};
-reader.onerror = error => reject(error);
-reader.readAsDataURL(file);
-});
-fileInput.value = '';
-}
-try {
-showLoadingStatus(true);
-const response = await fetch('/api/chat', {
-method: 'POST',
-headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify({ prompt: promptText, image: base64Image, mimeType: fileMimeType })
-});
-const data = await response.json();
-if (data.reply) {
-displayBotMessage(data.reply);
-if ('speechSynthesis' in window) {
-const cleanText = data.reply.replace(/[*#`]/g, '');
-const utterance = new SpeechSynthesisUtterance(cleanText);
-utterance.lang = 'hi-IN';
-window.speechSynthesis.speak(utterance);
-}
-} else if (data.error) {
-displayBotMessage("एरर आया बॉस: " + data.error);
-}
-} catch (err) {
-displayBotMessage("सर्वर से कनेक्ट नहीं हो पाया बॉस। कृपया दोबारा प्रयास करें।");
-} finally {
-showLoadingStatus(false);
-}
-}
+</script>
+</body>
+</html>
