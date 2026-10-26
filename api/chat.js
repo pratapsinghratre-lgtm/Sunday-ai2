@@ -1,41 +1,49 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI } from "@google/generative-ai"; 
 
 export default async function handler(req, res) {
-    // केवल POST रिक्वेस्ट को अनुमति दें
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Method not allowed' });
-    }
+if (req.method !== 'POST') {
+return res.status(405).json({ error: 'Method Not Allowed' });
+} 
 
-    try {
-        const { prompt } = req.body;
-        
-        // Vercel के Environment Variables से API Key उठाना
-        const apiKey = process.env.GEMINI_API_KEY;
-        
-        if (!apiKey) {
-            return res.status(500).json({ reply: "सर्वर गड़बड़: GEMINI_API_KEY सेट नहीं है बॉस!" });
-        }
+try {
+const { prompt, image, mimeType } = req.body;
+const apiKey = process.env.GEMINI_API_KEY; 
 
-        // Google Gen AI SDK को इनिशियलाइज़ करना
-        const ai = new GoogleGenAI({ apiKey: apiKey });
+if (!apiKey) {
+return res.status(500).json({ error: 'API Key missing in Vercel environment' });
+}
 
-        // Gemini 2.5 Flash मॉडल का उपयोग करके जवाब जेनरेट करना
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            // AI को आपका 'Boss' वाला फ्रेंडली टोन सिखाने के लिए सिस्टम इंस्ट्रक्शन
-            config: {
-                systemInstruction: "You are Sunday AI, a helpful trading assistant. Always address the user as 'Boss'. Keep your responses highly concise, direct, and completely avoid conversational filler words. Mix Hindi and English (Hinglish) naturally."
-            }
-        });
+const ai = new GoogleGenAI({ apiKey: apiKey });
 
-        const replyText = response.text;
+// ट्रेडिंग, CSC और वॉइस इनपुट को बेहतर संभालने के लिए gemini-2.5-flash बेस्ट है
+const model = ai.getGenerativeModel({
+model: "gemini-2.5-flash",
+// यहाँ बोट का बिहेवियर सेट किया है ताकि यह मेरी तरह बात करे
+systemInstruction: "You are Sunday AI, an advanced AI Assistant who talks like a close, smart friend and expert collaborator. Speak in a friendly, supportive, and natural mix of Hindi and English (Hinglish/Hindi). You are a 'Trading Master' expert in candlestick patterns, chart analysis, and financial news. You are also fully compatible with CSC (Common Service Centres) related queries and government digital services. Keep your responses precise, helpful, scannable, and completely error-free. Act like a voice assistant friendly companion."
+});
 
-        // फ्रंटएंड को असली जवाब भेजना
-        return res.status(200).json({ reply: replyText });
+let contents = [];
 
-    } catch (error) {
-        console.error("Gemini API Error:", error);
-        return res.status(500).json({ reply: "माफ़ कीजिएगा बॉस, जेमिनी सर्वर से कनेक्ट करने में गड़बड़ हुई।" });
-    }
+if (image && mimeType) {
+contents.push({
+inlineData: {
+data: image,
+mimeType: mimeType
+}
+});
+}
+
+contents.push(prompt || "Analyze the context and give a friendly response.");
+
+const result = await model.generateContent({
+contents: [{ parts: contents }]
+});
+
+const responseText = result.response.text();
+return res.status(200).json({ reply: responseText });
+
+} catch (error) {
+console.error("Gemini API Error:", error);
+return res.status(500).json({ error: "AI Processing Failed: " + error.message });
+}
 }
