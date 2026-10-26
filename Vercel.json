@@ -1,13 +1,54 @@
-{
-  "version": 2,
-  "rewrites": [
-    {
-      "source": "/api/chat",
-      "destination": "/api/chat.js"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
+import { GoogleGenAI } from "@google/genative-ai";
+
+export default async function handler(req, res) {
+  // केवल POST रिक्वेस्ट को अनुमति दें
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method Not Allowed' });
+  }
+
+  try {
+    const { prompt, image, mimeType } = req.body;
+    
+    // Vercel Environment Variable से चाबी उठाना
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: 'API Key is missing in Vercel settings!' });
     }
-  ]
+
+    // Google Gen AI SDK का बिल्कुल नया इनिशियलाइज़ेशन तरीका
+    const ai = new GoogleGenAI({ apiKey: apiKey });
+    
+    // ट्रेडिंग और इमेज एनालिसिस के लिए लेटेस्ट बेस्ट मॉडल
+    const model = ai.getGenerativeModel({ 
+      model: "gemini-2.5-flash",
+      systemInstruction: "You are Sunday AI, an advanced AI Assistant who talks like a close, smart friend and expert collaborator. Speak in a friendly, supportive, and natural mix of Hindi and English (Hinglish/Hindi). You are a 'Trading Master' expert in candlestick patterns, chart analysis, and financial news. You are also fully compatible with CSC (Common Service Centres) related queries and government digital services. Keep your responses precise, helpful, scannable, and completely error-free. Act like a voice assistant friendly companion and always call the user 'बॉस'."
+    });
+
+    let contents = [];
+
+    // अगर यूजर ने फोटो अपलोड की है तो उसे सही एरे फॉर्मेट में सेट करना
+    if (image && mimeType) {
+      contents.push({
+        inlineData: {
+          data: image,
+          mimeType: mimeType
+        }
+      });
+    }
+
+    // यूजर का टेक्स्ट प्रॉम्प्ट जोड़ें
+    contents.push(prompt || "Analyze the provided data or image.");
+
+    // लाइव AI से कंटेंट जनरेट करवाना
+    const result = await model.generateContent({
+      contents: [{ parts: contents }]
+    });
+
+    const responseText = result.response.text();
+    return res.status(200).json({ reply: responseText });
+
+  } catch (error) {
+    console.error("Gemini API Error Detail:", error);
+    return res.status(500).json({ error: "AI Processing Failed: " + error.message });
+  }
 }
