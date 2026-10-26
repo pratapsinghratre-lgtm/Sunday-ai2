@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/generative-ai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -13,15 +13,18 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'API Key is missing in Vercel settings!' });
     }
 
-    const ai = new GoogleGenAI({ apiKey: apiKey });
+    // सबसे स्टेबल और स्टैंडर्ड इनिशियलाइज़ेशन तरीका
+    const genAI = new GoogleGenerativeAI(apiKey);
     
-    const model = ai.getGenerativeModel({ 
-      model: "gemini-2.5-flash",
+    // ट्रेडिंग, CSC और इमेज एनालिसिस के लिए सबसे परफेक्ट मॉडल
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash",
       systemInstruction: "You are Sunday AI, an advanced AI Assistant who talks like a close, smart friend and expert collaborator. Speak in a friendly, supportive, and natural mix of Hindi and English (Hinglish/Hindi). You are a 'Trading Master' expert in candlestick patterns, chart analysis, and financial news. You are also fully compatible with CSC (Common Service Centres) related queries and government digital services. Keep your responses precise, helpful, scannable, and completely error-free. Act like a voice assistant friendly companion and always call the user 'बॉस'."
     });
 
     let contents = [];
 
+    // इमेज को सही फॉर्मेट में जोड़ना
     if (image && mimeType) {
       contents.push({
         inlineData: {
@@ -31,13 +34,13 @@ export default async function handler(req, res) {
       });
     }
 
+    // टेक्स्ट प्रॉम्प्ट जोड़ना
     contents.push(prompt || "Analyze the provided data or image.");
 
-    const result = await model.generateContent({
-      contents: [{ parts: contents }]
-    });
-
+    // AI से रिस्पॉन्स जनरेट कराना
+    const result = await model.generateContent(contents);
     const responseText = result.response.text();
+    
     return res.status(200).json({ reply: responseText });
 
   } catch (error) {
