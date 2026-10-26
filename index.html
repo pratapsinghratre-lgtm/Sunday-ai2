@@ -1,22 +1,47 @@
 const fileInput = document.getElementById('imageInput');
-const promptInput = document.getElementById('promptInput'); 
-
+const promptInput = document.getElementById('promptInput');
+const chatBox = document.getElementById('chatBox');
+const loadingText = document.getElementById('loading');
+function displayBotMessage(text) {
+const msg = document.createElement('div');
+msg.className = 'message bot';
+msg.innerText = text;
+chatBox.insertBefore(msg, loadingText);
+chatBox.scrollTop = chatBox.scrollHeight;
+}
+function displayUserMessage(text) {
+const msg = document.createElement('div');
+msg.className = 'message user';
+msg.innerText = text;
+chatBox.insertBefore(msg, loadingText);
+chatBox.scrollTop = chatBox.scrollHeight;
+}
+function showLoadingStatus(show) {
+loadingText.style.display = show ? 'block' : 'none';
+chatBox.scrollTop = chatBox.scrollHeight;
+}
 async function sendMessageToAI() {
 const promptText = promptInput.value;
 let base64Image = null;
-let fileMimeType = null; 
-
-// फिक्स: फाइल इनपुट एरे को सुरक्षित रूप से चेक करना
-if (fileInput && fileInput.files && fileInput.files) {
-const file = fileInput.files;
+let fileMimeType = null;
+if (!promptText.trim() && (!fileInput.files || !fileInput.files[0])) {
+return;
+}
+if (promptText.trim()) {
+displayUserMessage(promptText);
+promptInput.value = '';
+} else if (fileInput.files && fileInput.files[0]) {
+displayUserMessage("📸 [फोटो अपलोड की गई]");
+}
+if (fileInput.files && fileInput.files[0]) {
+const file = fileInput.files[0];
 fileMimeType = file.type;
 base64Image = await new Promise((resolve, reject) => {
 const reader = new FileReader();
 reader.onloadend = () => {
-// डेटा यूआरएल से केवल बेस64 स्ट्रिंग को अलग करना (कोई एरर नहीं होगा)
 const parts = reader.result.split(',');
 if (parts.length > 1) {
-resolve(parts);
+resolve(parts[1]);
 } else {
 resolve(null);
 }
@@ -24,16 +49,10 @@ resolve(null);
 reader.onerror = error => reject(error);
 reader.readAsDataURL(file);
 });
-} 
-
-// अगर वॉइस इनपुट या टेक्स्ट इनपुट दोनों खाली हैं और इमेज भी नहीं है तो रुकें
-if (!promptText.trim() && !base64Image) {
-return;
-} 
-
+fileInput.value = '';
+}
 try {
-showLoadingStatus(true); 
-
+showLoadingStatus(true);
 const response = await fetch('/api/chat', {
 method: 'POST',
 headers: {
@@ -45,24 +64,18 @@ image: base64Image,
 mimeType: fileMimeType
 }),
 });
-
 const data = await response.json();
-
 if (data.reply) {
 displayBotMessage(data.reply);
-
-// वॉइस असिस्टेंट फ्रेंडली फीचर: अगर सिस्टम में स्पीच सिंथेसिस एक्टिव है तो यह बोलकर भी बताएगा
 if ('speechSynthesis' in window) {
-// जवाब में से विशेष मार्कर या स्टार्स (*) हटाकर साफ आवाज़ में बोलना
 const cleanText = data.reply.replace(/[*#`]/g, '');
 const utterance = new SpeechSynthesisUtterance(cleanText);
-utterance.lang = 'hi-IN'; // हिंदी/हिंग्लिश वॉयस टोन
+utterance.lang = 'hi-IN';
 window.speechSynthesis.speak(utterance);
 }
 } else if (data.error) {
 displayBotMessage("एरर आया बॉस: " + data.error);
 }
-
 } catch (err) {
 displayBotMessage("सर्वर से कनेक्ट नहीं हो पाया बॉस। कृपया दोबारा प्रयास करें।");
 } finally {
