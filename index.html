@@ -1,267 +1,71 @@
-<!DOCTYPE html>
-<html lang="hi">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sunday AI</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-style: border-box;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        }
+const fileInput = document.getElementById('imageInput');
+const promptInput = document.getElementById('promptInput'); 
 
-        body {
-            background-color: #131314;
-            color: #e3e3e3;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-        }
+async function sendMessageToAI() {
+const promptText = promptInput.value;
+let base64Image = null;
+let fileMimeType = null; 
 
-        /* Top Header Area */
-        header {
-            padding: 20px;
-            text-align: center;
-        }
+// फिक्स: फाइल इनपुट एरे को सुरक्षित रूप से चेक करना
+if (fileInput && fileInput.files && fileInput.files) {
+const file = fileInput.files;
+fileMimeType = file.type;
+base64Image = await new Promise((resolve, reject) => {
+const reader = new FileReader();
+reader.onloadend = () => {
+// डेटा यूआरएल से केवल बेस64 स्ट्रिंग को अलग करना (कोई एरर नहीं होगा)
+const parts = reader.result.split(',');
+if (parts.length > 1) {
+resolve(parts);
+} else {
+resolve(null);
+}
+};
+reader.onerror = error => reject(error);
+reader.readAsDataURL(file);
+});
+} 
 
-        .header-title {
-            color: #4285F4; /* Pure Blue Color */
-            font-size: 2.5rem;
-            font-weight: 600;
-            margin-bottom: 5px;
-        }
+// अगर वॉइस इनपुट या टेक्स्ट इनपुट दोनों खाली हैं और इमेज भी नहीं है तो रुकें
+if (!promptText.trim() && !base64Image) {
+return;
+} 
 
-        .header-subtitle {
-            color: #80868b;
-            font-size: 1rem;
-        }
+try {
+showLoadingStatus(true); 
 
-        /* Chat Container */
-        .chat-container {
-            flex: 1;
-            overflow-y: auto;
-            padding: 20px;
-            max-width: 800px;
-            width: 100%;
-            margin: 0 auto;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
+const response = await fetch('/api/chat', {
+method: 'POST',
+headers: {
+'Content-Type': 'application/json',
+},
+body: JSON.stringify({
+prompt: promptText,
+image: base64Image,
+mimeType: fileMimeType
+}),
+});
 
-        .message {
-            max-width: 85%;
-            padding: 12px 16px;
-            border-radius: 18px;
-            line-height: 1.5;
-            font-size: 1rem;
-        }
+const data = await response.json();
 
-        .user-message {
-            background-color: #2b2a33;
-            color: #e3e3e3;
-            align-self: flex-end;
-            border-bottom-right-radius: 4px;
-        }
+if (data.reply) {
+displayBotMessage(data.reply);
 
-        .ai-message {
-            background-color: transparent;
-            color: #e3e3e3;
-            align-self: flex-start;
-            border-bottom-left-radius: 4px;
-        }
+// वॉइस असिस्टेंट फ्रेंडली फीचर: अगर सिस्टम में स्पीच सिंथेसिस एक्टिव है तो यह बोलकर भी बताएगा
+if ('speechSynthesis' in window) {
+// जवाब में से विशेष मार्कर या स्टार्स (*) हटाकर साफ आवाज़ में बोलना
+const cleanText = data.reply.replace(/[*#`]/g, '');
+const utterance = new SpeechSynthesisUtterance(cleanText);
+utterance.lang = 'hi-IN'; // हिंदी/हिंग्लिश वॉयस टोन
+window.speechSynthesis.speak(utterance);
+}
+} else if (data.error) {
+displayBotMessage("एरर आया बॉस: " + data.error);
+}
 
-        /* Input Control Wrapper (Google AI Style) */
-        .input-wrapper {
-            padding: 20px;
-            max-width: 800px;
-            width: 100%;
-            margin: 0 auto;
-        }
-
-        .input-box-container {
-            background-color: #1e1f20;
-            border-radius: 30px;
-            display: flex;
-            align-items: center;
-            padding: 10px 20px;
-            gap: 15px;
-            border: 1px solid #3c4043;
-        }
-
-        .input-box-container:focus-within {
-            border-color: #4285F4;
-            background-color: #202124;
-        }
-
-        /* Action Buttons Inside Bar */
-        .action-btn {
-            background: none;
-            border: none;
-            color: #c4c7c5;
-            cursor: pointer;
-            font-size: 1.5rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: color 0.2s;
-            width: 35px;
-            height: 35px;
-            border-radius: 50%;
-        }
-
-        .action-btn:hover {
-            color: #4285F4;
-            background-color: rgba(66, 133, 244, 0.1);
-        }
-
-        /* Main Input Field */
-        .chat-input {
-            flex: 1;
-            background: none;
-            border: none;
-            color: #e3e3e3;
-            font-size: 1rem;
-            outline: none;
-            padding: 5px 0;
-        }
-
-        .chat-input::placeholder {
-            color: #80868b;
-        }
-
-        /* File Upload Hidden Input */
-        #file-input {
-            display: none;
-        }
-
-        /* Status Preview for uploaded files */
-        .file-preview {
-            font-size: 0.85rem;
-            color: #4285F4;
-            margin-left: 20px;
-            margin-bottom: 5px;
-            display: none;
-        }
-    </style>
-</head>
-<body>
-
-    <!-- Header Section -->
-    <header>
-        <div class="header-title">Yes Boss</div>
-        <div class="header-subtitle">मैं आपकी ट्रेडिंग और कैंडलस्टिक एनालिसिस में कैसे मदद करूँ?</div>
-    </header>
-
-    <!-- Chat Screen -->
-    <div class="chat-container" id="chat-container">
-        <div class="message ai-message">
-            प्रणाम बॉस! आज संडे है। बताइए, कौन से स्टॉक का कैंडलस्टिक चार्ट या न्यूज़ एनालिसिस करना है?
-        </div>
-    </div>
-
-    <!-- Input Bar Section -->
-    <div class="input-wrapper">
-        <div class="file-preview" id="file-preview">📄 फ़ाइल अपलोड हो गई है...</div>
-        <div class="input-box-container">
-            <!-- Plus Button for Document/Photo Upload -->
-            <button class="action-btn" onclick="triggerUpload()" title="डॉक्यूमेंट अपलोड">+</button>
-            <input type="file" id="file-input" onchange="handleFile(event)" accept=".csv,.txt,.pdf,image/*">
-
-            <!-- Main Text Input -->
-            <input type="text" class="chat-input" id="user-input" placeholder="यहाँ प्रॉम्ट लिखें बॉस..." onkeypress="checkEnter(event)">
-
-            <!-- Mic Button for Voice Interaction -->
-            <button class="action-btn" id="mic-btn" onclick="toggleVoice()" title="आवाज़ रिकॉर्ड करें">🎙️</button>
-        </div>
-    </div>
-
-    <script>
-        const chatContainer = document.getElementById('chat-container');
-        const userInput = document.getElementById('user-input');
-        const fileInput = document.getElementById('file-input');
-        const filePreview = document.getElementById('file-preview');
-
-        // Trigger Hidden File Upload
-        function triggerUpload() {
-            fileInput.click();
-        }
-
-        // Handle File Selection
-        function handleFile(event) {
-            const file = event.target.files[0];
-            if (file) {
-                filePreview.textContent = `📄 अपलोड की गई फ़ाइल: ${file.name}`;
-                filePreview.style.display = 'block';
-            }
-        }
-
-        // Voice Interaction Simulation
-        let isRecording = false;
-        function toggleVoice() {
-            const micBtn = document.getElementById('mic-btn');
-            if (!isRecording) {
-                isRecording = true;
-                micBtn.style.color = '#ea4335'; // Red Color when active
-                userInput.placeholder = "बॉस, मैं सुन रहा हूँ... बोलिए...";
-            } else {
-                isRecording = false;
-                micBtn.style.color = '#c4c7c5';
-                userInput.placeholder = "यहाँ प्रॉम्ट लिखें बॉस...";
-                userInput.value = "Nifty 22800 Put का कैंडलस्टिक सेंटिमेंट क्या है?";
-            }
-        }
-
-        // Check if Enter key is pressed
-        function checkEnter(event) {
-            if (event.key === 'Enter') {
-                sendMessage();
-            }
-        }
-
-        // Send Message and Simulate Delta Threading (Streaming)
-        function sendMessage() {
-            const text = userInput.value.trim();
-            if (!text && !fileInput.files[0]) return;
-
-            // 1. User Message Layout
-            if (text) {
-                const userDiv = document.createElement('div');
-                userDiv.className = 'message user-message';
-                userDiv.textContent = text;
-                chatContainer.appendChild(userDiv);
-            }
-
-            userInput.value = '';
-            filePreview.style.display = 'none';
-            fileInput.value = ''; // Reset file input
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-
-            // 2. Simulate AI Delta Threading Response
-            setTimeout(() => {
-                const aiDiv = document.createElement('div');
-                aiDiv.className = 'message ai-message';
-                chatContainer.appendChild(aiDiv);
-
-                // Mocking Delta Text Stream Chunks
-                const responseText = "जी बॉस, डेटा प्रोसेस हो रहा है। कैंडलस्टिक पैटर्न के अनुसार मार्केट में अभी थोड़ी कमजोरी है और न्यूज़ सेंटिमेंट भी मंदी की तरफ इशारा कर रहा है।";
-                let index = 0;
-
-                // Delta Word-by-Word Streaming Logic
-                function streamText() {
-                    if (index < responseText.length) {
-                        aiDiv.textContent += responseText.charAt(index);
-                        index++;
-                        chatContainer.scrollTop = chatContainer.scrollHeight;
-                        setTimeout(streamText, 30); // 30ms timing for delta effect
-                    }
-                }
-                streamText();
-            }, 800);
-        }
-    </script>
-</body>
-            </html>
-            
+} catch (err) {
+displayBotMessage("सर्वर से कनेक्ट नहीं हो पाया बॉस। कृपया दोबारा प्रयास करें।");
+} finally {
+showLoadingStatus(false);
+}
+}
