@@ -1,9 +1,9 @@
-const { GoogleGenAI } = require("@google/genai");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-module.exports = async (req, res) => {
+module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({
-      error: "Boss, sirf POST request allowed hai."
+      error: "Method Not Allowed"
     });
   }
 
@@ -13,89 +13,60 @@ module.exports = async (req, res) => {
 
     if (!apiKey) {
       return res.status(500).json({
-        error: "GEMINI_API_KEY set nahi hai, Boss."
+        error: "GEMINI_API_KEY is missing in Vercel settings."
       });
     }
 
-    if (!prompt?.trim() && !image) {
-      return res.status(400).json({
-        error: "Boss, apna sawal ya photo bhejiye."
-      });
-    }
+    const genAI = new GoogleGenerativeAI(apiKey);
 
-    const ai = new GoogleGenAI({
-      apiKey: apiKey
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      systemInstruction: `
+        You are Sunday AI, a friendly and smart AI assistant.
+        Speak naturally in Hindi or Hinglish.
+        Always address the user as बॉस.
+        Help with general questions, trading education,
+        candlestick patterns, chart analysis, CSC services,
+        and image analysis.
+        Be clear, helpful, and honest about uncertainty.
+        Do not promise trading profits.
+      `
     });
 
-    const systemPrompt = `
-You are Sunday AI, a friendly personal AI assistant.
+    const parts = [];
 
-Rules:
-- Address the user respectfully as Boss.
-- Speak naturally in Hindi or Hinglish.
-- Be friendly, helpful and easy to understand.
-- Help with general questions, learning and problem solving.
-- Trading: explain charts, candlestick patterns,
-  technical analysis and risk management.
-- Never guarantee profits or invent live market prices.
-- CSC: explain services, application processes and
-  document requirements. Do not invent official rules.
-- Documents: explain and summarize uploaded images.
-- Protect private information and never request passwords
-  or OTPs.
-- Explain technical steps in simple language.
-
-Reply in the language the user prefers.
-`;
-
-    const contents = [
-      {
-        text:
-          systemPrompt +
-          "\n\nBoss ka message:\n" +
-          (prompt || "Please analyze the uploaded image.")
-      }
-    ];
-
-    if (image) {
-      if (
-        typeof image !== "string" ||
-        !mimeType ||
-        !/^image\/(jpeg|png|webp|gif)$/i.test(mimeType)
-      ) {
-        return res.status(400).json({
-          error: "Boss, valid JPG, PNG, WEBP ya GIF image upload karein."
-        });
-      }
-
-      contents.push({
+    if (image && mimeType) {
+      parts.push({
         inlineData: {
-          mimeType: mimeType,
-          data: image
+          data: image.replace(/^data:[^,]+,/, ""),
+          mimeType: mimeType
         }
       });
     }
 
-    const result = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: contents
+    parts.push({
+      text: prompt || "Please analyze the provided image or data."
     });
 
-    const reply = result.text;
-
-    if (!reply) {
-      throw new Error("AI returned an empty response");
-    }
-
-    return res.status(200).json({
-      reply: reply
+    const result = await model.generateContent({
+      contents: [
+        {
+          role: "user",
+          parts: parts
+        }
+      ]
     });
+
+    const reply = result.response.text();
+
+    return res.status(200).json({ reply });
 
   } catch (error) {
     console.error("Sunday AI Error:", error);
 
     return res.status(500).json({
-      error: "Sunday AI abhi jawab nahi de pa raha. Dobara try karein."
+      error: "AI Processing Failed",
+      details: error.message
     });
   }
 };
