@@ -12,8 +12,8 @@ Never promise trading profits.
 `;
 
 const MODELS = [
-  "gemini-3.8-flash",
-  "gemini-2.5-flash"
+  const MODELS = [
+  "gemini-3.8-flash"
 ];
 
 const sleep = (ms) =>
