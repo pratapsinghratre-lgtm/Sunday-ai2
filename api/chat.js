@@ -11,10 +11,7 @@ Be clear, helpful, and honest about uncertainty.
 Never promise trading profits.
 `;
 
-const MODELS = [
-  const MODELS = [
-  "gemini-3.8-flash"
-];
+const MODELS = ["gemini-3.8-flash"];
 
 const sleep = (ms) =>
   new Promise((resolve) => setTimeout(resolve, ms));
@@ -36,7 +33,7 @@ module.exports = async function handler(req, res) {
 
   try {
     const { prompt, image, mimeType } = req.body || {};
-
+    const genAI = new GoogleGenerativeAI(apiKey);
     const parts = [];
 
     if (image && mimeType) {
@@ -52,7 +49,6 @@ module.exports = async function handler(req, res) {
       text: prompt || "Please analyze the provided image or data."
     });
 
-    const genAI = new GoogleGenerativeAI(apiKey);
     let lastError;
 
     for (const modelName of MODELS) {
@@ -64,48 +60,45 @@ module.exports = async function handler(req, res) {
       for (let attempt = 1; attempt <= 2; attempt++) {
         try {
           const result = await model.generateContent({
-            contents: [
-              {
-                role: "user",
-                parts
-              }
-            ]
+            contents: [{ role: "user", parts }]
           });
 
-          const reply = result.response.text();
-
-          return res.status(200).json({ reply });
+          return res.status(200).json({
+            reply: result.response.text()
+          });
 
         } catch (error) {
           lastError = error;
 
-          const status = error.status ||
+          const status =
+            error.status ||
             (error.response && error.response.status);
 
           console.error(
-            `Sunday AI: ${modelName}, attempt ${attempt}, status ${status}`,
+            "Sunday AI Error:",
+            status,
             error.message
           );
 
-          // Retry only temporary server or rate-limit errors.
           if (![429, 500, 502, 503, 504].includes(status)) {
             throw error;
           }
 
           if (attempt < 2) {
-            await sleep(1000);
+            await sleep(1500);
           }
         }
       }
     }
 
-    const finalStatus = lastError &&
+    const status =
+      lastError &&
       (lastError.status ||
-       (lastError.response && lastError.response.status));
+        (lastError.response && lastError.response.status));
 
-    if ([429, 500, 502, 503, 504].includes(finalStatus)) {
+    if ([429, 500, 502, 503, 504].includes(status)) {
       return res.status(503).json({
-        error: "Sunday AI is temporarily busy. Please try again shortly."
+        error: "Sunday AI is busy right now. Please try again shortly."
       });
     }
 
