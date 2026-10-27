@@ -1,12 +1,16 @@
-const { GoogleGenerativeAI } = require("@google/generative-ai");const SYSTEM_INSTRUCTION = `
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+
+const SYSTEM_INSTRUCTION = `
 You are Sunday AI, a friendly and smart AI assistant.
 Speak naturally in Hindi or Hinglish.
+Always address the user as Boss or Boss in Hindi.
+Help with general questions, trading education, candlestick patterns,
+chart analysis, CSC services, and image analysis.
+Be clear, helpful, and honest about uncertainty.
+Never promise trading profits.
 `;
 
 const MODELS = ["gemini-3.8-flash"];
-
-const sleep = (ms) =>
-  new Promise((resolve) => setTimeout(resolve, ms));
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
@@ -25,83 +29,58 @@ module.exports = async function handler(req, res) {
 
   try {
     const { prompt, image, mimeType } = req.body || {};
+
+    if (!prompt && !image) {
+      return res.status(400).json({
+        error: "Please enter a message or upload an image."
+      });
+    }
+
     const genAI = new GoogleGenerativeAI(apiKey);
+
+    const model = genAI.getGenerativeModel({
+      model: MODELS[0],
+      systemInstruction: SYSTEM_INSTRUCTION
+    });
+
     const parts = [];
 
     if (image && mimeType) {
       parts.push({
         inlineData: {
           data: image.replace(/^data:[^,]+,/, ""),
-          mimeType
+          mimeType: mimeType
         }
       });
     }
 
-    parts.push({
-      text: prompt || "Please analyze the provided image or data."
+    if (prompt) {
+      parts.push({
+        text: prompt
+      });
+    }
+
+    const result = await model.generateContent({
+      contents: [
+        {
+          role: "user",
+          parts: parts
+        }
+      ]
     });
 
-    let lastError;
+    const reply = result.response.text();
 
-    for (const modelName of MODELS) {
-      const model = genAI.getGenerativeModel({
-        model: modelName,
-        systemInstruction: SYSTEM_INSTRUCTION
-      });
-
-      for (let attempt = 1; attempt <= 2; attempt++) {
-        try {
-          const result = await model.generateContent({
-            contents: [{ role: "user", parts }]
-          });
-
-          return res.status(200).json({
-            reply: result.response.text()
-          });
-
-        } catch (error) {
-          lastError = error;
-
-          const status =
-            error.status ||
-            (error.response && error.response.status);
-
-          console.error(
-            "Sunday AI Error:",
-            status,
-            error.message
-          );
-
-          if (![429, 500, 502, 503, 504].includes(status)) {
-            throw error;
-          }
-
-          if (attempt < 2) {
-            await sleep(1500);
-          }
-        }
-      }
-    }
-
-    const status =
-      lastError &&
-      (lastError.status ||
-        (lastError.response && lastError.response.status));
-
-    if ([429, 500, 502, 503, 504].includes(status)) {
-      return res.status(503).json({
-        error: "Sunday AI is busy right now. Please try again shortly."
-      });
-    }
-
-    throw lastError || new Error("AI request failed");
+    return res.status(200).json({
+      reply: reply
+    });
 
   } catch (error) {
     console.error("Sunday AI Error:", error);
 
     return res.status(500).json({
       error: "AI Processing Failed",
-      details: error.message
+      details: error.message || "Unknown error"
     });
   }
 };
