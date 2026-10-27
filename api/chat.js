@@ -1,14 +1,6 @@
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-
 const SYSTEM_INSTRUCTION = `
 You are Sunday AI, a friendly and smart AI assistant.
 Speak naturally in Hindi or Hinglish.
-Always address the user as बॉस.
-Help with general questions, trading education,
-candlestick patterns, chart analysis, CSC services,
-and image analysis.
-Be clear, helpful, and honest about uncertainty.
-Never promise trading profits.
 `;
 
 const MODELS = ["gemini-3.8-flash"];
