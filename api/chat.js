@@ -20,7 +20,7 @@ module.exports = async function handler(req, res) {
     const genAI = new GoogleGenerativeAI(apiKey);
 
     const model = genAI.getGenerativeModel({
-      model: model: "gemini-3.1-flash-lite",
+      model: "gemini-3.8-flash",
       systemInstruction: `
         You are Sunday AI, a friendly and smart AI assistant.
         Speak naturally in Hindi or Hinglish.
