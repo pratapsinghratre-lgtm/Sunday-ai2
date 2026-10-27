@@ -1,4 +1,4 @@
-const SYSTEM_INSTRUCTION = `
+const { GoogleGenerativeAI } = require("@google/generative-ai");const SYSTEM_INSTRUCTION = `
 You are Sunday AI, a friendly and smart AI assistant.
 Speak naturally in Hindi or Hinglish.
 `;
