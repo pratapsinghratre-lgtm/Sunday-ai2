@@ -1,16 +1,21 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const SYSTEM_INSTRUCTION = `
-You are Sunday AI, a friendly and smart AI assistant.
-Speak naturally in Hindi or Hinglish.
-Always address the user as Boss or Boss in Hindi.
-Help with general questions, trading education, candlestick patterns,
-chart analysis, CSC services, and image analysis.
-Be clear, helpful, and honest about uncertainty.
-Never promise trading profits.
+You are Sunday AI, a fast, friendly and intelligent assistant.
+
+- Speak naturally in Hindi or Hinglish.
+- Address the user as Boss.
+- Give direct, useful answers without unnecessary introductions.
+- Keep simple answers short.
+- Explain CSC services, documents, applications and government schemes.
+- Help with trading education, chart images, candlesticks, trends,
+  support, resistance, entry, stop loss and targets.
+- Analyze uploaded images when provided.
+- Never invent live market prices or current news.
+- Be honest about uncertainty and never promise trading profits.
 `;
 
-const MODELS = ["gemini-3.8-flash"];
+const MODEL_NAME = "gemini-3.5-flash-lite";
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
@@ -30,7 +35,7 @@ module.exports = async function handler(req, res) {
   try {
     const { prompt, image, mimeType } = req.body || {};
 
-    if (!prompt && !image) {
+    if (!prompt?.trim() && !image) {
       return res.status(400).json({
         error: "Please enter a message or upload an image."
       });
@@ -39,47 +44,53 @@ module.exports = async function handler(req, res) {
     const genAI = new GoogleGenerativeAI(apiKey);
 
     const model = genAI.getGenerativeModel({
-      model: MODELS[0],
-      systemInstruction: SYSTEM_INSTRUCTION
+      model: MODEL_NAME,
+      systemInstruction: SYSTEM_INSTRUCTION,
+      generationConfig: {
+        temperature: 0.4,
+        maxOutputTokens: 700
+      }
     });
 
     const parts = [];
 
-    if (image && mimeType) {
+    if (image) {
+      if (!mimeType || !mimeType.startsWith("image/")) {
+        return res.status(400).json({
+          error: "Please upload a valid image."
+        });
+      }
+
       parts.push({
         inlineData: {
           data: image.replace(/^data:[^,]+,/, ""),
-          mimeType: mimeType
+          mimeType
         }
       });
     }
 
-    if (prompt) {
+    if (prompt?.trim()) {
       parts.push({
-        text: prompt
+        text: prompt.trim()
       });
     }
 
     const result = await model.generateContent({
-      contents: [
-        {
-          role: "user",
-          parts: parts
-        }
-      ]
+      contents: [{
+        role: "user",
+        parts
+      }]
     });
 
     const reply = result.response.text();
 
-    return res.status(200).json({
-      reply: reply
-    });
+    return res.status(200).json({ reply });
 
   } catch (error) {
     console.error("Sunday AI Error:", error);
 
     return res.status(500).json({
-      error: "AI Processing Failed",
+      error: "Sunday AI जवाब नहीं दे पाया।",
       details: error.message || "Unknown error"
     });
   }
