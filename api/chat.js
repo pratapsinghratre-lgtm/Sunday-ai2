@@ -13,21 +13,55 @@ GENERAL KNOWLEDGE:
 - Help with CSC services, documents, applications and government schemes.
 - Never invent rules, fees, deadlines or links.
 
-CHART ANALYSIS:
-- Analyze uploaded chart images when provided.
-- Explain visible candlesticks, trends, support and resistance.
-- Distinguish visible facts from interpretations.
-- Explain bullish and bearish possibilities where useful.
-- Never guarantee price movements or profits.
+CHART IMAGE ANALYSIS:
+When a user uploads a stock or crypto chart image, analyze it carefully.
+Support Indian stocks, NIFTY, BANKNIFTY, other shares, Bitcoin, Ethereum
+and other crypto charts.
+
+Use this exact report structure when possible:
+
+1. Asset / Market: Identify it only if visible.
+2. Timeframe: Identify it only if visible.
+3. Current visible price: Report it only if clearly readable.
+4. Trend: Bullish, bearish, sideways or unclear.
+5. Chart observations: Explain visible candles, support, resistance,
+   breakout, breakdown or other relevant patterns.
+6. Educational setup: Possible bullish scenario and possible bearish
+   scenario, if the chart provides enough evidence.
+7. Possible direction: BUY BIAS, SELL BIAS or WAIT.
+8. Possible entry zone: Only if the chart provides enough information.
+9. Possible stop-loss (SL): Only if a technically reasonable level
+   can be estimated from visible chart levels.
+10. Possible targets: Target 1 and Target 2, only when support,
+    resistance and price information are sufficiently clear.
+11. Risk level: Low, medium, high or unclear, with a brief reason.
+12. What could invalidate the analysis: Explain what would weaken
+    or invalidate the observed setup.
+
+IMPORTANT CHART SAFETY:
+- This is educational chart interpretation, not personalized financial
+  advice or a guaranteed trading signal.
+- BUY BIAS and SELL BIAS describe possible chart scenarios, not commands
+  to trade with real money.
+- Never guarantee profit or a future price.
+- Never invent prices, candles, indicators, timeframe, entry, SL or targets.
+- If price labels or important levels are unreadable, say so clearly.
+- If the image is not a market chart, describe what is actually visible.
+- If evidence is mixed, choose WAIT / UNCLEAR rather than forcing a signal.
+- Explain that stop-losses can be crossed and losses can exceed expectations
+  in fast-moving or illiquid markets.
+- Do not claim that a chart image alone can establish a reliable probability
+  of success.
 
 TRADING EDUCATION:
 - Explain concepts and chart observations clearly.
 - Explain uncertainty and risks.
-- Never promise profits or guaranteed predictions.
 - Label hypothetical examples as educational.
+- Do not promise profits or guaranteed predictions.
 
 LIVE MARKET DATA:
 - Do not invent live prices, news or market movements.
+- Chart image analysis is not the same as live market data.
 - If live data is not connected, say so clearly.
 - Explain that market prices can change quickly.
 
@@ -212,7 +246,7 @@ module.exports = async function handler(req, res) {
 
     // Live crypto price requests get a directly formatted reply.
     // Gemini does not rewrite the numeric values.
-    if (cleanPrompt && asksForLiveCryptoPrice(cleanPrompt)) {
+    if (cleanPrompt && !image && asksForLiveCryptoPrice(cleanPrompt)) {
       let marketData;
 
       try {
@@ -248,7 +282,7 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    // Keep Gemini for normal questions and image/chart analysis.
+    // Gemini handles normal questions and uploaded images.
     const parts = [];
 
     if (image) {
@@ -276,16 +310,28 @@ module.exports = async function handler(req, res) {
           mimeType
         }
       });
-    }
 
-    if (cleanPrompt) {
-      parts.push({ text: cleanPrompt });
-    } else if (image) {
       parts.push({
-        text:
-          "Please analyze this image in simple Hindi. " +
-          "If it is a market chart, explain only what is visible."
+        text: cleanPrompt
+          ? (
+              cleanPrompt +
+              "\n\nIf this is a stock or crypto chart, provide the structured " +
+              "educational chart report specified in your instructions. " +
+              "Only estimate entry, stop-loss and targets when the image " +
+              "contains enough readable information. Never invent prices."
+            )
+          : (
+              "Analyze this uploaded image. If it is a stock or crypto chart, " +
+              "immediately provide the structured educational chart report: " +
+              "asset, timeframe if visible, trend, visible price if readable, " +
+              "chart observations, possible BUY BIAS / SELL BIAS / WAIT, " +
+              "possible entry zone, stop-loss, Target 1, Target 2, risk level, " +
+              "and what could invalidate the setup. Do not invent missing " +
+              "prices or levels. If it is not a chart, describe the image."
+            )
       });
+    } else {
+      parts.push({ text: cleanPrompt });
     }
 
     const genAI = new GoogleGenerativeAI(geminiKey);
@@ -295,7 +341,7 @@ module.exports = async function handler(req, res) {
       systemInstruction: SYSTEM_INSTRUCTION,
       generationConfig: {
         temperature: 0.3,
-        maxOutputTokens: 1000
+        maxOutputTokens: 1500
       }
     });
 
