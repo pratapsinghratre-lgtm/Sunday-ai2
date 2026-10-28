@@ -1,52 +1,73 @@
-module.exports = async function handler(req, res) {
-  if (req.method !== "GET") {
-    return res.status(405).json({
-      error: "Method Not Allowed"
-    });
-  }
+const https = require("https");
 
-  const apiKey = process.env.COINGECKO_API_KEY;
+function fetchJSON(url, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const request = https.get(
+      url,
+      { headers: { "User-Agent": "Sunday-AI/1.0", ...headers } },
+      (response) => {
+        let body = "";
 
-  if (!apiKey) {
-    return res.status(500).json({
-      error: "COINGECKO_API_KEY is missing in Vercel settings."
-    });
-  }
+        response.on("data", (chunk) => {
+          body += chunk;
+        });
 
-  try {
-    const url = new URL(
-      "https://api.coingecko.com/api/v3/simple/price"
+        response.on("end", () => {
+          try {
+            if (response.statusCode < 200 || response.statusCode >= 300) {
+              return reject(new Error(`API status: ${response.statusCode}`));
+            }
+
+            resolve(JSON.parse(body));
+          } catch (error) {
+            reject(error);
+          }
+        });
+      }
     );
 
-    url.searchParams.set("ids", "bitcoin,ethereum");
-    url.searchParams.set("vs_currencies", "inr");
-    url.searchParams.set("include_24hr_change", "true");
-
-    const response = await fetch(url, {
-      headers: {
-        "x-cg-demo-api-key": apiKey
-      }
+    request.setTimeout(10000, () => {
+      request.destroy(new Error("API timeout"));
     });
 
-    if (!response.ok) {
-      return res.status(response.status).json({
-        error: "CoinGecko market data is temporarily unavailable."
-      });
-    }
+    request.on("error", reject);
+  });
+}
 
-    const data = await response.json();
+module.exports = async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
 
-    return res.status(200).json({
-      success: true,
-      currency: "INR",
-      updatedAt: new Date().toISOString(),
-      prices: data
-    });
-  } catch (error) {
-    console.error("Market API error:", error.message);
-
-    return res.status(500).json({
-      error: "Unable to fetch market data."
+  if (req.method !== "GET") {
+    res.setHeader("Allow", "GET");
+    return res.status(405).json({
+      success: false,
+      error: "GET request required"
     });
   }
+
+  const results = await Promise.allSettled([
+    fetchJSON(
+      "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=inr&include_24hr_change=true"
+    )
+  ]);
+
+  const cryptoResult = results[0];
+
+  const crypto = cryptoResult.status === "fulfilled"
+    ? cryptoResult.value
+    : null;
+
+  return res.status(200).json({
+    success: true,
+    updatedAt: new Date().toISOString(),
+    currency: "INR",
+    crypto: crypto
+      ? {
+          bitcoin: crypto.bitcoin || null,
+          ethereum: crypto.ethereum || null
+        }
+      : null,
+    errors: crypto ? [] : ["Crypto data is temporarily unavailable"],
+    message: "Indian stock market data and news will be connected in the next update."
+  });
 };
