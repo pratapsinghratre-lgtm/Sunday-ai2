@@ -10,47 +10,147 @@
     box-sizing: border-box;
     margin: 0;
     padding: 0;
-    font-family: sans-serif;
+    font-family: Arial, sans-serif;
 }
 
 body {
-    background: #121212;
-    color: #e0e0e0;
-    display: flex;
-    flex-direction: column;
+    background: #101418;
+    color: white;
     min-height: 100vh;
 }
 
 header {
-    background: #1f1f1f;
-    padding: 16px;
+    background: #1b242b;
+    padding: 18px;
     text-align: center;
-    border-bottom: 2px solid #00e676;
-    font-size: 1.2rem;
-    font-weight: bold;
     color: #00e676;
+    font-size: 22px;
+    font-weight: bold;
+    border-bottom: 2px solid #00e676;
 }
 
 #voiceStatus {
-    background: #202020;
-    color: #00e676;
     text-align: center;
-    padding: 8px;
-    font-size: 14px;
+    padding: 10px;
+    background: #172027;
+    color: #00e676;
 }
 
 .section {
     margin: 12px;
     padding: 14px;
-    background: #1f1f1f;
-    border: 1px solid #333;
+    background: #1b242b;
     border-radius: 12px;
+    border: 1px solid #34434c;
 }
 
-.section h2 {
+h2 {
     color: #00e676;
-    font-size: 19px;
+    font-size: 18px;
     margin-bottom: 12px;
+}
+
+button {
+    background: #00e676;
+    color: #07120b;
+    border: none;
+    border-radius: 9px;
+    padding: 12px 16px;
+    font-weight: bold;
+    font-size: 15px;
+    cursor: pointer;
+}
+
+button:disabled {
+    opacity: .5;
+}
+
+#voiceButton {
+    display: block;
+    width: calc(100% - 24px);
+    margin: 14px 12px;
+    padding: 16px;
+    font-size: 17px;
+}
+
+#voiceButton.active {
+    background: #ff5252;
+    color: white;
+}
+
+#chatBox {
+    min-height: 180px;
+    max-height: 430px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.message {
+    padding: 12px;
+    border-radius: 10px;
+    max-width: 90%;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.user {
+    background: #00e676;
+    color: black;
+    align-self: flex-end;
+}
+
+.bot {
+    background: #29343c;
+    align-self: flex-start;
+}
+
+#inputArea {
+    display: flex;
+    gap: 7px;
+    padding: 12px;
+    background: #1b242b;
+    position: sticky;
+    bottom: 0;
+    border-top: 1px solid #34434c;
+}
+
+#promptInput {
+    flex: 1;
+    min-width: 0;
+    padding: 12px;
+    background: #29343c;
+    border: 1px solid #52616a;
+    border-radius: 8px;
+    color: white;
+    font-size: 16px;
+}
+
+.file-label {
+    background: #34434c;
+    color: white;
+    padding: 12px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+#loading {
+    display: none;
+    color: #aaa;
+}
+
+#featurePanel {
+    display: none;
+}
+
+#tradingChart {
+    width: 100%;
+    height: 380px;
+    background: #101418;
+    border: 0;
+    border-radius: 8px;
 }
 
 .trading-input {
@@ -63,40 +163,10 @@ header {
     flex: 1;
     min-width: 0;
     padding: 12px;
-    background: #2a2a2a;
-    border: 1px solid #444;
-    border-radius: 8px;
+    background: #29343c;
+    border: 1px solid #52616a;
     color: white;
-    font-size: 16px;
-}
-
-button {
-    border: none;
     border-radius: 8px;
-    padding: 12px;
-    font-size: 15px;
-    font-weight: bold;
-    cursor: pointer;
-    background: #00e676;
-    color: #000;
-}
-
-button:disabled {
-    opacity: 0.6;
-}
-
-#tradingChart {
-    width: 100%;
-    height: 420px;
-    border: none;
-    border-radius: 8px;
-    background: #111;
-}
-
-.chart-note {
-    color: #aaa;
-    font-size: 12px;
-    margin-top: 8px;
 }
 
 .signal-grid {
@@ -106,318 +176,547 @@ button:disabled {
 }
 
 .signal-card {
-    background: #292929;
+    background: #29343c;
     padding: 12px;
-    border-radius: 9px;
-    border: 1px solid #444;
+    border-radius: 8px;
 }
 
 .signal-card h3 {
     color: #aaa;
     font-size: 13px;
-    margin-bottom: 8px;
 }
 
 .signal-card p {
     color: #00e676;
-    font-weight: bold;
-    font-size: 16px;
+    margin-top: 7px;
 }
 
 #signalResult {
+    white-space: pre-wrap;
+    line-height: 1.6;
     margin-top: 12px;
+    background: #29343c;
     padding: 12px;
-    background: #292929;
     border-radius: 8px;
-    white-space: pre-wrap;
-    line-height: 1.6;
 }
 
-#chatBox {
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    min-height: 180px;
-    max-height: 450px;
-    overflow-y: auto;
-}
-
-.message {
-    max-width: 90%;
-    padding: 12px 15px;
-    border-radius: 10px;
-    line-height: 1.6;
-    font-size: 1rem;
-    overflow-wrap: anywhere;
-    white-space: pre-wrap;
-}
-
-.user {
-    background: #00e676;
-    color: #000;
-    align-self: flex-end;
-}
-
-.bot {
-    background: #2a2a2a;
-    color: #fff;
-    align-self: flex-start;
-    border: 1px solid #3a3a3a;
-}
-
-#loading {
+.chart-note {
     color: #aaa;
-    display: none;
-    padding: 8px;
+    font-size: 12px;
+    margin-top: 8px;
 }
 
-#inputArea {
-    background: #1f1f1f;
-    padding: 10px;
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    border-top: 1px solid #333;
-}
-
-#promptInput {
-    flex: 1;
-    min-width: 0;
-    padding: 12px;
-    background: #2a2a2a;
-    border: 1px solid #444;
-    border-radius: 8px;
-    color: white;
-    font-size: 16px;
-}
-
-.file-label {
-    background: #3a3a3a;
-    color: white;
-    border-radius: 8px;
-    padding: 12px;
-    cursor: pointer;
-}
-
-#voiceButton {
-    width: calc(100% - 20px);
-    margin: 10px;
-}
-
-#voiceButton.active {
-    background: #ff5252;
-    color: white;
-}
-
-@media(max-width: 400px) {
+@media(max-width:400px) {
     #tradingChart {
-        height: 340px;
+        height: 300px;
     }
 }
 </style>
-</head><body>
+</head>
+<body>
 
-<header>Sunday AI 🤖 — आपका Voice Friend</header>
+<header>Sunday AI 🤖</header>
 
-<div id="voiceStatus">Voice Mode बंद है</div>
+<div id="voiceStatus">Voice Assistant बंद है</div>
 
-<!-- TRADING CSC -->
+<button id="voiceButton" onclick="toggleVoiceMode()">
+🎙️ Voice Assistant चालू करें
+</button>
+
 <div class="section">
-    <h2>📊 Sunday AI — Trading CSC</h2>
-
-    <div class="trading-input">
-        <input
-            type="text"
-            id="stockSymbol"
-            placeholder="Stock Symbol जैसे RELIANCE"
-        >
-        <button onclick="loadTradingChart()">Chart</button>
-    </div>
-
-    <div id="tradingChart"></div>
-
-    <p class="chart-note">
-        Chart data provider से उपलब्ध होने पर ही दिखेगा।
-    </p>
-</div>
-
-<!-- INDICATORS -->
-<div class="section">
-    <h2>📈 Technical Indicators</h2>
-
-    <div class="signal-grid">
-
-        <div class="signal-card">
-            <h3>RSI (14)</h3>
-            <p id="rsiValue">--</p>
-        </div>
-
-        <div class="signal-card">
-            <h3>Market Trend</h3>
-            <p id="trendValue">--</p>
-        </div>
-
-        <div class="signal-card">
-            <h3>Support</h3>
-            <p id="supportValue">--</p>
-        </div>
-
-        <div class="signal-card">
-            <h3>Resistance</h3>
-            <p id="resistanceValue">--</p>
-        </div>
-
-    </div>
-</div>
-
-<!-- SIGNAL ANALYSIS -->
-<div class="section">
-    <h2>🎯 Trading Signal Analysis</h2>
-
-    <button onclick="analyzeTradingSignal()">
-        Analyse Market
-    </button>
-
-    <div id="signalResult">
-        Stock Symbol डालकर Analysis शुरू करें।
-    </div>
-
-    <p class="chart-note">
-        Signals केवल शैक्षणिक विश्लेषण हैं। Confidence score
-        profitable trade या 100% accuracy की गारंटी नहीं है।
-    </p>
-</div>
-
-<!-- CHAT -->
-<div class="section">
-    <h2>💬 Sunday AI Chat</h2>
+    <h2>💬 Sunday AI Chat & Search</h2>
 
     <div id="chatBox">
         <div class="message bot">
             नमस्ते Boss! मैं Sunday AI हूँ।
-            मुझसे बोलकर या लिखकर बात कर सकते हैं।
-            आप CSC, सामान्य सवाल और Trading Analysis पूछ सकते हैं।
+            मुझसे बोलकर या लिखकर सवाल पूछ सकते हो।
+            किसी फीचर का नाम लिखो, मैं उससे जुड़ा विकल्प दिखाऊँगा।
         </div>
 
-        <div id="loading">
-            Boss, जवाब तैयार कर रहा हूँ...
-        </div>
+        <div id="loading">Sunday AI जवाब तैयार कर रहा है...</div>
     </div>
 </div>
 
-<button id="voiceButton" onclick="toggleVoiceMode()">
-    🎙️ Voice Mode चालू करें
-</button>
+<!-- Trading features hidden until requested -->
+<div id="featurePanel">
+
+    <div class="section">
+        <h2>📊 Sunday AI Trading CSC</h2>
+
+        <div class="trading-input">
+            <input id="stockSymbol"
+                   type="text"
+                   placeholder="जैसे RELIANCE">
+            <button onclick="loadTradingChart()">Chart</button>
+        </div>
+
+        <iframe id="tradingChart"
+                title="TradingView Chart"
+                loading="lazy">
+        </iframe>
+
+        <p class="chart-note">
+            Chart data provider से उपलब्ध होने पर ही दिखेगा।
+        </p>
+    </div>
+
+    <div class="section">
+        <h2>📈 Technical Indicators</h2>
+
+        <div class="signal-grid">
+            <div class="signal-card">
+                <h3>RSI (14)</h3>
+                <p id="rsiValue">--</p>
+            </div>
+
+            <div class="signal-card">
+                <h3>Market Trend</h3>
+                <p id="trendValue">--</p>
+            </div>
+
+            <div class="signal-card">
+                <h3>Support</h3>
+                <p id="supportValue">--</p>
+            </div>
+
+            <div class="signal-card">
+                <h3>Resistance</h3>
+                <p id="resistanceValue">--</p>
+            </div>
+        </div>
+
+        <button style="margin-top:12px;width:100%;"
+                onclick="analyzeTradingSignal()">
+            Analyse Market
+        </button>
+
+        <div id="signalResult">
+            Stock Symbol डालकर Analysis शुरू करें।
+        </div>
+
+        <p class="chart-note">
+            यह शैक्षणिक विश्लेषण है। कोई भी signal profit या accuracy की गारंटी नहीं देता।
+        </p>
+    </div>
+
+</div>
 
 <div id="inputArea">
 
-    <label for="imageInput" class="file-label">📸</label>
+    <label for="imageInput" class="file-label">📷</label>
 
-    <input
-        type="file"
-        id="imageInput"
-        accept="image/*"
-        hidden
-    >
+    <input type="file"
+           id="imageInput"
+           accept="image/*"
+           hidden>
 
-    <input
-        type="text"
-        id="promptInput"
-        placeholder="बोलें या सवाल लिखें..."
-        autocomplete="off"
-    >
+    <input type="text"
+           id="promptInput"
+           placeholder="सवाल या फीचर का नाम लिखें..."
+           autocomplete="off">
 
     <button id="sendButton" onclick="sendMessageToAI()">
         भेजें
     </button>
 
 </div><script>
-const fileInput = document.getElementById("imageInput");
-const promptInput = document.getElementById("promptInput");
 const chatBox = document.getElementById("chatBox");
-const loadingText = document.getElementById("loading");
+const promptInput = document.getElementById("promptInput");
+const imageInput = document.getElementById("imageInput");
+const loading = document.getElementById("loading");
+const sendButton = document.getElementById("sendButton");
 const voiceButton = document.getElementById("voiceButton");
 const voiceStatus = document.getElementById("voiceStatus");
-const sendButton = document.getElementById("sendButton");
+
+let voiceMode = false;
+let recognition = null;
+let isProcessing = false;
+let chatHistory = [];
 
 const SpeechRecognition =
-    window.SpeechRecognition || window.webkitSpeechRecognition;
-
-let recognition = null;
-let voiceMode = false;
-let isListening = false;
-let isProcessing = false;
-let isSpeaking = false;
+    window.SpeechRecognition ||
+    window.webkitSpeechRecognition;
 
 function displayMessage(text, type) {
     const msg = document.createElement("div");
     msg.className = "message " + type;
-    msg.innerText = text;
-    chatBox.insertBefore(msg, loadingText);
+    msg.textContent = text;
+
+    chatBox.insertBefore(msg, loading);
     chatBox.scrollTop = chatBox.scrollHeight;
 }
 
 function showLoading(show) {
-    loadingText.style.display = show ? "block" : "none";
+    loading.style.display = show ? "block" : "none";
     sendButton.disabled = show;
 }
 
-function updateVoiceStatus(text) {
-    voiceStatus.innerText = text;
+function speakText(text) {
+    if (!("speechSynthesis" in window)) return;
+
+    speechSynthesis.cancel();
+
+    const speech = new SpeechSynthesisUtterance(text);
+    speech.lang = "hi-IN";
+    speech.rate = 1;
+
+    speechSynthesis.speak(speech);
 }
 
 function updateVoiceButton() {
-    voiceButton.innerText = voiceMode
-        ? "🔴 Voice Mode बंद करें"
-        : "🎙️ Voice Mode चालू करें";
+    voiceButton.textContent = voiceMode
+        ? "🔴 Voice Assistant बंद करें"
+        : "🎙️ Voice Assistant चालू करें";
 
     voiceButton.classList.toggle("active", voiceMode);
 }
 
-function createRecognition() {
+function startListening() {
+    if (!voiceMode || isProcessing) return;
+
     if (!SpeechRecognition) {
-        displayMessage(
-            "इस ब्राउज़र में Voice Recognition उपलब्ध नहीं है। Chrome में कोशिश करें।",
-            "bot"
-        );
-        return false;
+        voiceStatus.textContent =
+            "इस ब्राउज़र में Voice Recognition उपलब्ध नहीं है। Chrome इस्तेमाल करें।";
+        voiceMode = false;
+        updateVoiceButton();
+        return;
     }
 
-    recognition = new SpeechRecognition();
-    recognition.lang = "hi-IN";
-    recognition.continuous = false;
-    recognition.interimResults = false;
+    try {
+        recognition = new SpeechRecognition();
+        recognition.lang = "hi-IN";
+        recognition.continuous = false;
+        recognition.interimResults = false;
 
-    recognition.onstart = function() {
-        isListening = true;
-        updateVoiceStatus("🎙️ सुन रहा हूँ Boss...");
-    };
+        recognition.onstart = function() {
+            voiceStatus.textContent = "🎙️ सुन रहा हूँ Boss...";
+        };
 
-    recognition.onresult = function(event) {
-        const transcript = event.results[0][0].transcript;
+        recognition.onresult = function(event) {
+            const transcript =
+                event.results[0][0].transcript.trim();
 
-        if (transcript && transcript.trim()) {
-            promptInput.value = transcript.trim();
-            displayMessage("🎙️ " + transcript.trim(), "user");
-            sendMessageToAI(true);
-        }
-    };
+            if (transcript) {
+                promptInput.value = transcript;
+                sendMessageToAI(true);
+            }
+        };
 
-    recognition.onerror = function(event) {
-        isListening = false;
+        recognition.onerror = function(event) {
+            voiceStatus.textContent =
+                "Voice समस्या: " + event.error;
 
-        if (
-            event.error === "not-allowed" ||
-            event.error === "service-not-allowed"
-        ) {
+            if (
+                event.error === "not-allowed" ||
+                event.error === "service-not-allowed"
+            ) {
+                voiceMode = false;
+                updateVoiceButton();
+            }
+        };
+
+        recognition.onend = function() {
+            if (voiceMode && !isProcessing) {
+                setTimeout(startListening, 700);
+            }
+        };
+
+        recognition.start();
+
+    } catch (error) {
+        voiceStatus.textContent = "Voice शुरू नहीं हो पाया।";
+    }
+}
+
+function toggleVoiceMode() {
+    voiceMode = !voiceMode;
+
+    updateVoiceButton();
+
+    if (voiceMode) {
+        voiceStatus.textContent = "Voice Assistant सक्रिय है";
+
+        if (SpeechRecognition) {
+            startListening();
+        } else {
+            voiceStatus.textContent =
+                "इस ब्राउज़र में Voice Recognition उपलब्ध नहीं है।";
             voiceMode = false;
             updateVoiceButton();
-            updateVoiceStatus("माइक्रोफोन की अनुमति दें");
         }
-    };
+    } else {
+        if (recognition) {
+            try {
+                recognition.stop();
+            } catch (error) {}
+        }
 
-    recognition.onend = function() {
-        isListening = false;
+        if ("speechSynthesis" in window) {
+            speechSynthesis.cancel();
+        }
 
-        if (voiceMode && !isProcessing && !
+        voiceStatus.textContent = "Voice Assistant बंद है";
+    }
+}
+
+function detectFeature(text) {
+    const command = text.toLowerCase();
+
+    const tradingWords = [
+        "trading", "stock", "share", "nifty",
+        "banknifty", "rsi", "support", "resistance",
+        "chart", "market", "analyse", "analysis"
+    ];
+
+    const otherFeatures = [
+        {
+            words: ["weather", "mausam", "मौसम"],
+            name: "Weather"
+        },
+        {
+            words: ["news", "खबर"],
+            name: "News"
+        },
+        {
+            words: ["time", "samay", "समय"],
+            name: "Time"
+        },
+        {
+            words: ["calculator", "गणना"],
+            name: "Calculator"
+        }
+    ];
+
+    if (tradingWords.some(word => command.includes(word))) {
+        const panel = document.getElementById("featurePanel");
+
+        panel.style.display = "block";
+
+        return "Trading CSC विकल्प खोल दिया है। Stock Symbol डालकर Chart या Analyse Market इस्तेमाल करें।";
+    }
+
+    const found = otherFeatures.find(feature =>
+        feature.words.some(word => command.includes(word))
+    );
+
+    if (found) {
+        return found.name +
+            " फीचर की पहचान हो गई है। अभी इसके लिए API/फंक्शन जोड़ना बाकी है।";
+    }
+
+    return null;
+}
+
+async function sendMessageToAI(fromVoice = false) {
+    if (isProcessing) return;
+
+    const prompt = promptInput.value.trim();
+    const file = imageInput.files[0];
+
+    if (!prompt && !file) return;
+
+    if (prompt) {
+        displayMessage(prompt, "user");
+    } else if (file) {
+        displayMessage("📷 फोटो भेजी गई", "user");
+    }
+
+    const featureResponse = prompt ? detectFeature(prompt) : null;
+
+    if (featureResponse) {
+        displayMessage(featureResponse, "bot");
+
+        if (fromVoice && voiceMode) {
+            speakText(featureResponse);
+        }
+
+        promptInput.value = "";
+        imageInput.value = "";
+        return;
+    }
+
+    let image = null;
+    let mimeType = null;
+
+    if (file) {
+        mimeType = file.type || "image/jpeg";
+
+        try {
+            image = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+
+                reader.onload = () => {
+                    resolve(reader.result.split(",")[1]);
+                };
+
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        } catch (error) {
+            displayMessage("फोटो पढ़ने में समस्या आई।", "bot");
+            return;
+        }
+    }
+
+    promptInput.value = "";
+    imageInput.value = "";
+
+    isProcessing = true;
+    showLoading(true);
+
+    try {
+        const response = await fetch("/api/chat", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                prompt: prompt || "इस फोटो का विश्लेषण करो।",
+                image: image,
+                mimeType: mimeType,
+                history: chatHistory
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || "API Error");
+        }
+
+        const answer =
+            data.reply ||
+            data.response ||
+            data.message ||
+            "मुझे जवाब नहीं मिला।";
+
+        displayMessage(answer, "bot");
+
+        chatHistory.push(
+            { role: "user", content: prompt || "Photo uploaded" },
+            { role: "model", content: answer }
+        );
+
+        if (chatHistory.length > 20) {
+            chatHistory = chatHistory.slice(-20);
+        }
+
+        if (fromVoice && voiceMode) {
+            speakText(answer);
+        }
+
+    } catch (error) {
+        displayMessage(
+            "Boss, API में समस्या आई: " + error.message,
+            "bot"
+        );
+    } finally {
+        isProcessing = false;
+        showLoading(false);
+
+        if (voiceMode) {
+            voiceStatus.textContent = "Voice Assistant सक्रिय है";
+            setTimeout(startListening, 1000);
+        }
+    }
+}
+
+promptInput.addEventListener("keydown", function(event) {
+    if (event.key === "Enter") {
+        event.preventDefault();
+        sendMessageToAI();
+    }
+});
+
+imageInput.addEventListener("change", function() {
+    if (this.files.length) {
+        voiceStatus.textContent =
+            "📷 फोटो चुनी गई: " + this.files[0].name;
+    }
+});function loadTradingChart() {
+    const input = document.getElementById("stockSymbol");
+    const symbol = input.value.trim().toUpperCase();
+
+    if (!symbol) {
+        alert("पहले Stock Symbol डालें।");
+        return;
+    }
+
+    const allowedSymbol = /^[A-Z0-9._-]+$/;
+
+    if (!allowedSymbol.test(symbol)) {
+        alert("कृपया सही Stock Symbol डालें।");
+        return;
+    }
+
+    const chart = document.getElementById("tradingChart");
+
+    chart.src =
+        "https://s.tradingview.com/widgetembed/?" +
+        "symbol=NSE%3A" + encodeURIComponent(symbol) +
+        "&interval=D&hidesidetoolbar=0&symboledit=1" +
+        "&saveimage=0&toolbarbg=101418" +
+        "&theme=dark&style=1&timezone=Asia%2FKolkata" +
+        "&withdateranges=1&hideideas=1";
+
+    document.getElementById("featurePanel").style.display = "block";
+}
+
+async function analyzeTradingSignal() {
+    const symbol =
+        document.getElementById("stockSymbol").value.trim().toUpperCase();
+
+    if (!symbol) {
+        alert("पहले Stock Symbol डालें।");
+        return;
+    }
+
+    const result = document.getElementById("signalResult");
+
+    result.textContent = "Market Analysis तैयार हो रहा है...";
+
+    try {
+        const response = await fetch("/api/chat", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                prompt:
+                    "Educational technical analysis of " + symbol +
+                    ". Use verified available data only. Explain RSI, trend, " +
+                    "support and resistance if data is available. Clearly state " +
+                    "when data is unavailable. Do not invent values or promise profits."
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || "Analysis API failed");
+        }
+
+        const answer =
+            data.reply ||
+            data.response ||
+            data.message ||
+            "Analysis उपलब्ध नहीं है।";
+
+        result.textContent = answer;
+
+        document.getElementById("featurePanel").style.display = "block";
+
+    } catch (error) {
+        result.textContent =
+            "Analysis में समस्या: " + error.message;
+    }
+}
+
+window.addEventListener("load", function() {
+    updateVoiceButton();
+    voiceStatus.textContent = "Voice Assistant बंद है";
+});
+</script>
+
+</body>
+</html>
