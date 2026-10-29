@@ -1,7 +1,7 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const https = require("https");
 
-const MODEL_NAME = "gemini-3.5-flash-lite";
+const MODEL_NAME = "gemini-3.5-flash";
 
 const SYSTEM_INSTRUCTION = `
 You are Sunday AI, a helpful personal assistant.
