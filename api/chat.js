@@ -1,5 +1,7 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
+const MODEL_NAME = "gemini-3.5-flash-lite";
+
 const SYSTEM_INSTRUCTION = `
 You are Sunday AI, a helpful, intelligent and friendly AI assistant.
 
@@ -8,68 +10,98 @@ LANGUAGE AND STYLE:
 - Address the user as Boss.
 - Give direct, useful answers.
 - Explain difficult topics step by step.
+- Do not introduce unrelated topics at the end of an answer.
 
 GENERAL KNOWLEDGE:
 - Help with CSC services, documents, applications and government schemes.
 - Never invent rules, fees, deadlines or links.
 
+MARKET DATA:
+- Use actual market data provided in the conversation.
+- Distinguish daily historical data from live intraday prices.
+- Never call daily closing prices live prices.
+- Never invent prices, dates, news or market movements.
+- If data is unavailable, explain the limitation clearly.
+- Alpha Vantage data availability depends on its supported symbols and plan.
+- Do not claim that NIFTY or BANKNIFTY data is available unless verified.
+
 CHART IMAGE ANALYSIS:
 When a user uploads a stock or crypto chart image, analyze it carefully.
-Support Indian stocks, NIFTY, BANKNIFTY, other shares, Bitcoin, Ethereum
-and other crypto charts.
 
-Use this exact report structure when possible:
-
-1. Asset / Market: Identify it only if visible.
-2. Timeframe: Identify it only if visible.
-3. Current visible price: Report it only if clearly readable.
-4. Trend: Bullish, bearish, sideways or unclear.
-5. Chart observations: Explain visible candles, support, resistance,
-   breakout, breakdown or other relevant patterns.
-6. Educational setup: Possible bullish scenario and possible bearish
-   scenario, if the chart provides enough evidence.
+Use this structure when possible:
+1. Asset / Market, if identifiable.
+2. Timeframe, if visible.
+3. Current visible price, only if readable.
+4. Trend: bullish, bearish, sideways or unclear.
+5. Chart observations.
+6. Possible bullish and bearish scenarios.
 7. Possible direction: BUY BIAS, SELL BIAS or WAIT.
-8. Possible entry zone: Only if the chart provides enough information.
-9. Possible stop-loss (SL): Only if a technically reasonable level
-   can be estimated from visible chart levels.
-10. Possible targets: Target 1 and Target 2, only when support,
-    resistance and price information are sufficiently clear.
-11. Risk level: Low, medium, high or unclear, with a brief reason.
-12. What could invalidate the analysis: Explain what would weaken
-    or invalidate the observed setup.
+8. Possible entry zone, only with sufficient evidence.
+9. Possible stop-loss, only with sufficient evidence.
+10. Possible targets, only with sufficient evidence.
+11. Risk level and reason.
+12. What could invalidate the analysis.
 
-IMPORTANT CHART SAFETY:
-- This is educational chart interpretation, not personalized financial
-  advice or a guaranteed trading signal.
-- BUY BIAS and SELL BIAS describe possible chart scenarios, not commands
-  to trade with real money.
-- Never guarantee profit or a future price.
-- Never invent prices, candles, indicators, timeframe, entry, SL or targets.
-- If price labels or important levels are unreadable, say so clearly.
-- If the image is not a market chart, describe what is actually visible.
-- If evidence is mixed, choose WAIT / UNCLEAR rather than forcing a signal.
-- Explain that stop-losses can be crossed and losses can exceed expectations
-  in fast-moving or illiquid markets.
-- Do not claim that a chart image alone can establish a reliable probability
-  of success.
+CHART SAFETY:
+- Educational analysis, not a guaranteed trading signal.
+- Never guarantee profits or future prices.
+- Never invent chart levels.
+- If evidence is mixed, prefer WAIT / UNCLEAR.
+- Explain that stop-losses do not guarantee a maximum loss.
+- Do not claim that a chart image establishes a reliable probability of success.
 
 TRADING EDUCATION:
-- Explain concepts and chart observations clearly.
-- Explain uncertainty and risks.
+- Explain concepts and uncertainty.
 - Label hypothetical examples as educational.
-- Do not promise profits or guaranteed predictions.
-
-LIVE MARKET DATA:
-- Do not invent live prices, news or market movements.
-- Chart image analysis is not the same as live market data.
-- If live data is not connected, say so clearly.
-- Explain that market prices can change quickly.
+- Do not promise profits.
 
 ANSWER QUALITY:
-- Give helpful explanations instead of only saying "do your own research."
+- Be helpful, clear and concise.
 `;
 
-const MODEL_NAME = "gemini-3.5-flash-lite";
+function fetchJSON(url, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const request = require("https").get(
+      url,
+      {
+        headers: {
+          "User-Agent": "Sunday-AI/1.0",
+          ...headers
+        }
+      },
+      (response) => {
+        let body = "";
+
+        response.on("data", (chunk) => {
+          body += chunk;
+        });
+
+        response.on("end", () => {
+          try {
+            if (
+              response.statusCode < 200 ||
+              response.statusCode >= 300
+            ) {
+              return reject(
+                new Error(`API status: ${response.statusCode}`)
+              );
+            }
+
+            resolve(JSON.parse(body));
+          } catch (error) {
+            reject(error);
+          }
+        });
+      }
+    );
+
+    request.setTimeout(10000, () => {
+      request.destroy(new Error("API timeout"));
+    });
+
+    request.on("error", reject);
+  });
+}
 
 async function getCryptoPrices() {
   const apiKey = process.env.COINGECKO_API_KEY;
@@ -86,17 +118,9 @@ async function getCryptoPrices() {
   url.searchParams.set("vs_currencies", "inr");
   url.searchParams.set("include_24hr_change", "true");
 
-  const response = await fetch(url.toString(), {
-    headers: {
-      "x-cg-demo-api-key": apiKey
-    }
+  return fetchJSON(url.toString(), {
+    "x-cg-demo-api-key": apiKey
   });
-
-  if (!response.ok) {
-    throw new Error("COINGECKO_REQUEST_FAILED");
-  }
-
-  return await response.json();
 }
 
 function asksForLiveCryptoPrice(prompt) {
@@ -106,16 +130,14 @@ function asksForLiveCryptoPrice(prompt) {
     /\b(bitcoin|btc|ethereum|ether|eth)\b/.test(text);
 
   const asksForPrice =
-    /(price|current|live|rate|kitna|keemat|daam|abhi|aaj|rupee|inr|कीमत|दाम|भाव|अभी|price table)/i.test(
-      text
-    );
+    /(price|current|live|rate|kitna|keemat|daam|abhi|aaj|rupee|inr|कीमत|दाम|भाव|अभी)/i.test(text);
 
   return mentionsCrypto && asksForPrice;
 }
 
 function formatINR(value) {
   if (typeof value !== "number" || !Number.isFinite(value)) {
-    return "Data unavailable";
+    return "Unavailable";
   }
 
   return "₹" + value.toLocaleString("en-IN", {
@@ -123,97 +145,176 @@ function formatINR(value) {
   });
 }
 
-function formatChange(value) {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    return "Data unavailable";
-  }
-
-  const sign = value > 0 ? "+" : "";
-
-  return sign + value.toFixed(2) + "%";
-}
-
 function formatTime(isoTime) {
-  const date = new Date(isoTime);
-
-  if (Number.isNaN(date.getTime())) {
-    return "Unavailable";
-  }
-
-  return (
-    date.toLocaleString("en-IN", {
-      timeZone: "Asia/Kolkata",
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: true
-    }) + " IST"
-  );
+  return new Date(isoTime).toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    dateStyle: "medium",
+    timeStyle: "medium"
+  }) + " IST";
 }
 
-function buildCryptoReply(data, fetchedAt, prompt) {
+function buildCryptoReply(data, prompt, fetchedAt) {
   const text = prompt.toLowerCase();
 
-  const asksBitcoin =
-    /\b(bitcoin|btc)\b/.test(text);
-
-  const asksEthereum =
-    /\b(ethereum|ether|eth)\b/.test(text);
-
-  const showBoth = asksBitcoin && asksEthereum;
+  const wantsBTC = /\b(bitcoin|btc)\b/.test(text);
+  const wantsETH = /\b(ethereum|ether|eth)\b/.test(text);
 
   const assets = [];
 
-  if (showBoth || asksBitcoin) {
-    assets.push({
-      name: "Bitcoin (BTC)",
-      data: data.bitcoin
-    });
+  if (wantsBTC || (!wantsBTC && !wantsETH)) {
+    assets.push(["Bitcoin (BTC)", data.bitcoin]);
   }
 
-  if (showBoth || asksEthereum) {
-    assets.push({
-      name: "Ethereum (ETH)",
-      data: data.ethereum
-    });
+  if (wantsETH || (!wantsBTC && !wantsETH)) {
+    assets.push(["Ethereum (ETH)", data.ethereum]);
   }
 
-  if (assets.length === 0) {
-    return null;
-  }
-
-  const rows = assets.map((asset) => {
-    const coin = asset.data;
-
+  const rows = assets.map(([name, coin]) => {
     if (!coin || typeof coin.inr !== "number") {
-      return (
-        "| " + asset.name +
-        " | Data unavailable | Data unavailable |"
-      );
+      return `| ${name} | Unavailable | Unavailable |`;
     }
 
-    return (
-      "| " + asset.name +
-      " | " + formatINR(coin.inr) +
-      " | " + formatChange(coin.inr_24h_change) +
-      " |"
-    );
+    const change =
+      typeof coin.inr_24h_change === "number"
+        ? coin.inr_24h_change.toFixed(2) + "%"
+        : "Unavailable";
+
+    return `| ${name} | ${formatINR(coin.inr)} | ${change} |`;
   });
 
   return [
-    "Namaste Boss! Ye raha CoinGecko se mila crypto data:",
+    "Namaste Boss! CoinGecko se mila crypto data:",
     "",
-    "| Crypto Asset | Price (INR) | 24-hour Change |",
+    "| Crypto | Price (INR) | 24-hour change |",
     "|---|---:|---:|",
     ...rows,
     "",
     "**Source:** CoinGecko",
-    "**Fetch Time:** " + formatTime(fetchedAt),
+    `**Fetched:** ${formatTime(fetchedAt)}`,
     "",
-    "Ye fetch time par mila data hai. Crypto prices lagatar badal sakti hain. 24-hour change pichhle 24 ghanton ka percentage change hai; ye future return ki guarantee nahi hai."
+    "Ye fetch time par mila data hai. Prices badal sakti hain; future returns ki guarantee nahi hai."
+  ].join("\n");
+}
+
+function detectStockRequest(prompt) {
+  const text = prompt.trim();
+  const lower = text.toLowerCase();
+
+  const mentionsStock =
+    /\b(stock|share|shares|stock price|share price|market data|nifty|banknifty|sensex|reliance|tcs|infosys|hdfcbank|icicibank|tatamotors|itc)\b/i.test(text) ||
+    /\b[A-Z]{2,15}(?:\.(?:BSE|NSE))\b/.test(text);
+
+  const asksForData =
+    /(price|quote|data|market|chart|share|stock|current|latest|live|today|aaj|abhi|bhav|भाव|कीमत|दाम|reliance\.bse|reliance\.nse)/i.test(text);
+
+  if (!mentionsStock || !asksForData) {
+    return null;
+  }
+
+  // Use an explicit Alpha Vantage symbol if the user supplied one.
+  const explicitSymbol = text.match(
+    /\b([A-Z0-9]{2,15}\.(?:BSE|NSE))\b/i
+  );
+
+  if (explicitSymbol) {
+    return explicitSymbol[1].toUpperCase();
+  }
+
+  const symbols = [
+    [/\breliance\b/i, "RELIANCE.BSE"],
+    [/\btcs\b/i, "TCS.BSE"],
+    [/\binfosys\b/i, "INFY.BSE"],
+    [/\bhdfc\s*bank\b/i, "HDFCBANK.BSE"],
+    [/\bicici\s*bank\b/i, "ICICIBANK.BSE"],
+    [/\btata\s*motors\b/i, "TATAMOTORS.BSE"],
+    [/\bitc\b/i, "ITC.BSE"]
+  ];
+
+  for (const [pattern, symbol] of symbols) {
+    if (pattern.test(lower)) {
+      return symbol;
+    }
+  }
+
+  return null;
+}
+
+async function getDailyStockData(symbol) {
+  const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
+
+  if (!apiKey) {
+    throw new Error("ALPHA_VANTAGE_API_KEY_MISSING");
+  }
+
+  const url = new URL("https://www.alphavantage.co/query");
+
+  url.searchParams.set("function", "TIME_SERIES_DAILY");
+  url.searchParams.set("symbol", symbol);
+  url.searchParams.set("outputsize", "compact");
+  url.searchParams.set("apikey", apiKey);
+
+  const data = await fetchJSON(url.toString());
+
+  if (data.Note || data.Information || data["Error Message"]) {
+    throw new Error(
+      data.Note ||
+      data.Information ||
+      data["Error Message"]
+    );
+  }
+
+  const series = data["Time Series (Daily)"];
+
+  if (!series) {
+    throw new Error("STOCK_SYMBOL_UNAVAILABLE");
+  }
+
+  const dates = Object.keys(series).sort().reverse();
+
+  if (!dates.length) {
+    throw new Error("STOCK_HISTORY_EMPTY");
+  }
+
+  const latestDate = dates[0];
+  const latest = series[latestDate];
+
+  return {
+    symbol,
+    dataType: "daily historical data",
+    latestDate,
+    latest: {
+      open: Number(latest["1. open"]),
+      high: Number(latest["2. high"]),
+      low: Number(latest["3. low"]),
+      close: Number(latest["4. close"]),
+      volume: Number(latest["5. volume"])
+    },
+    previousDays: dates.slice(1, 4).map((date) => ({
+      date,
+      close: Number(series[date]["4. close"])
+    }))
+  };
+}
+
+function buildStockReply(data, fetchedAt) {
+  const p = data.latest;
+
+  return [
+    `Boss, Alpha Vantage se ${data.symbol} ka daily data mila hai.`,
+    "",
+    `**Data date:** ${data.latestDate}`,
+    `**Open:** ${formatINR(p.open)}`,
+    `**High:** ${formatINR(p.high)}`,
+    `**Low:** ${formatINR(p.low)}`,
+    `**Close:** ${formatINR(p.close)}`,
+    `**Volume:** ${p.volume.toLocaleString("en-IN")}`,
+    "",
+    "**Source:** Alpha Vantage",
+    `**Fetched:** ${formatTime(fetchedAt)}`,
+    "",
+    "**Important:** Ye daily historical data hai, live intraday quote nahi. Market band hone, provider delay, ya unsupported symbol ki wajah se date purani ho sakti hai.",
+    "",
+    "Ye data apne aap BUY ya SELL signal nahi hai. Trading mein risk hota hai."
   ].join("\n");
 }
 
@@ -234,7 +335,6 @@ module.exports = async function handler(req, res) {
 
   try {
     const { prompt, image, mimeType } = req.body || {};
-
     const cleanPrompt =
       typeof prompt === "string" ? prompt.trim() : "";
 
@@ -244,45 +344,72 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    // Live crypto price requests get a directly formatted reply.
-    // Gemini does not rewrite the numeric values.
     if (cleanPrompt && !image && asksForLiveCryptoPrice(cleanPrompt)) {
-      let marketData;
-
       try {
-        marketData = await getCryptoPrices();
-      } catch (error) {
-        console.error("CoinGecko error:", error.message);
+        const data = await getCryptoPrices();
 
-        if (error.message === "COINGECKO_API_KEY_MISSING") {
-          return res.status(503).json({
-            reply:
-              "Boss, Vercel mein COINGECKO_API_KEY nahi mili. " +
-              "Vercel Environment Variables mein setting check karein."
-          });
-        }
+        return res.status(200).json({
+          reply: buildCryptoReply(
+            data,
+            cleanPrompt,
+            new Date().toISOString()
+          )
+        });
+      } catch (error) {
+        console.error("Crypto API error:", error.message);
 
         return res.status(503).json({
           reply:
-            "Boss, abhi CoinGecko se live price nahi mil paayi. " +
+            "Boss, abhi crypto data nahi mil paaya. " +
             "Main galat price guess nahi karunga. Thodi der baad try karein."
         });
       }
+    }
 
-      const fetchedAt = new Date().toISOString();
+    // Connect stock-price questions to Alpha Vantage daily history.
+    if (cleanPrompt && !image) {
+      const symbol = detectStockRequest(cleanPrompt);
 
-      const reply = buildCryptoReply(
-        marketData,
-        fetchedAt,
-        cleanPrompt
-      );
+      if (symbol) {
+        try {
+          const data = await getDailyStockData(symbol);
 
-      if (reply) {
-        return res.status(200).json({ reply });
+          return res.status(200).json({
+            reply: buildStockReply(data, new Date().toISOString())
+          });
+        } catch (error) {
+          console.error("Alpha Vantage error:", error.message);
+
+          let message =
+            "Boss, Alpha Vantage se is stock ka data nahi mil paaya.";
+
+          if (error.message === "ALPHA_VANTAGE_API_KEY_MISSING") {
+            message =
+              "Boss, Vercel mein ALPHA_VANTAGE_API_KEY setting nahi mili. Environment Variables check karein.";
+          } else if (error.message === "STOCK_SYMBOL_UNAVAILABLE") {
+            message =
+              `Boss, Alpha Vantage ne ${symbol} ka daily data nahi diya. ` +
+              "Ho sakta hai symbol supported na ho ya tumhare plan mein available na ho. Main price invent nahi karunga.";
+          } else if (
+            error.message.includes("API status:") ||
+            error.message === "API timeout"
+          ) {
+            message =
+              "Boss, market-data server se abhi response nahi mila. Thodi der baad dobara try karein.";
+          } else if (
+            /rate limit|call frequency|25 requests|higher API call frequency/i.test(
+              error.message
+            )
+          ) {
+            message =
+              "Boss, Alpha Vantage ki request limit ya usage restriction aa sakti hai. Free quota check karein.";
+          }
+
+          return res.status(503).json({ reply: message });
+        }
       }
     }
 
-    // Gemini handles normal questions and uploaded images.
     const parts = [];
 
     if (image) {
@@ -313,22 +440,9 @@ module.exports = async function handler(req, res) {
 
       parts.push({
         text: cleanPrompt
-          ? (
-              cleanPrompt +
-              "\n\nIf this is a stock or crypto chart, provide the structured " +
-              "educational chart report specified in your instructions. " +
-              "Only estimate entry, stop-loss and targets when the image " +
-              "contains enough readable information. Never invent prices."
-            )
-          : (
-              "Analyze this uploaded image. If it is a stock or crypto chart, " +
-              "immediately provide the structured educational chart report: " +
-              "asset, timeframe if visible, trend, visible price if readable, " +
-              "chart observations, possible BUY BIAS / SELL BIAS / WAIT, " +
-              "possible entry zone, stop-loss, Target 1, Target 2, risk level, " +
-              "and what could invalidate the setup. Do not invent missing " +
-              "prices or levels. If it is not a chart, describe the image."
-            )
+          ? cleanPrompt +
+            "\n\nAnalyze this image carefully. If it is a stock or crypto chart, provide educational chart analysis. Never invent unreadable prices or levels."
+          : "Analyze this image. If it is a stock or crypto chart, explain the visible trend, levels and possible scenarios. Do not invent prices or claim live data from the image."
       });
     } else {
       parts.push({ text: cleanPrompt });
