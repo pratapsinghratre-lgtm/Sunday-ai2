@@ -6,7 +6,7 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const https = require("https");
 
-const MODEL_NAME = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const MODEL_NAME = process.env.GEMINI_MODEL || "gemini-3.8-flash";
 
 const SYSTEM_INSTRUCTION = `
 You are Sunday AI, a helpful personal AI assistant.
