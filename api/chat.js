@@ -323,7 +323,6 @@ async function getCompanyNews(symbol) {
   const companyName = COMPANY_NAMES[symbol] || symbol;
   const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
 
-  // First attempt: Alpha Vantage NEWS_SENTIMENT.
   if (apiKey) {
     try {
       const url =
@@ -382,8 +381,6 @@ async function getCompanyNews(symbol) {
     );
   }
 
-  // Fallback: Google News RSS.
-  // No Alpha Vantage news endpoint is needed for this attempt.
   try {
     const articles = await getGoogleNewsRSS(companyName);
 
@@ -394,7 +391,6 @@ async function getCompanyNews(symbol) {
     };
   } catch (error) {
     console.error("Google News RSS error:", error.message);
-
     throw new Error("ALL_NEWS_SOURCES_FAILED");
   }
 }
@@ -752,9 +748,7 @@ function buildIndexReply(data) {
   );
 
   return lines.join("\n");
-}
-
-/* ---------------- GEMINI ASSISTANT ---------------- */
+                                         }/* ---------------- GEMINI ASSISTANT ---------------- */
 
 function getImageParts(body) {
   const imageValue =
@@ -797,7 +791,9 @@ async function askGemini(prompt, imageParts = []) {
     throw new Error("GEMINI_API_KEY_MISSING");
   }
 
-  const genAI = new GoogleGenerativeAI(apiKey);const model = genAI.getGenerativeModel({
+  const genAI = new GoogleGenerativeAI(apiKey);
+
+  const model = genAI.getGenerativeModel({
     model: MODEL_NAME,
     systemInstruction: SYSTEM_INSTRUCTION,
   });
@@ -807,9 +803,36 @@ async function askGemini(prompt, imageParts = []) {
     ...imageParts,
   ];
 
-  const result = await model.generateContent(parts);
+  const maxAttempts = 3;
 
-  return result.response.text();
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const result = await model.generateContent(parts);
+      return result.response.text();
+    } catch (error) {
+      const message = String(error.message || error);
+
+      const temporaryError =
+        /503|429|500|502|504|high demand|overloaded|temporarily unavailable/i.test(
+          message
+        );
+
+      console.error(
+        `Gemini attempt ${attempt}/${maxAttempts} failed:`,
+        message.slice(0, 500)
+      );
+
+      if (!temporaryError || attempt === maxAttempts) {
+        throw error;
+      }
+
+      await new Promise((resolve) =>
+        setTimeout(resolve, attempt * 1500)
+      );
+    }
+  }
+
+  throw new Error("GEMINI_RETRIES_EXHAUSTED");
 }
 
 /* ---------------- API HANDLER ---------------- */
@@ -865,7 +888,7 @@ module.exports = async function handler(req, res) {
 
         return res.status(503).json({
           reply:
-            "Boss, abhi Alpha Vantage aur Google News dono se news fetch nahi ho paayi. Thodi der baad dobara try karo.",
+            "Boss, abhi Google News RSS se bhi news fetch nahi ho paayi. Thodi der baad dobara try karo.",
         });
       }
     }
@@ -961,6 +984,13 @@ module.exports = async function handler(req, res) {
       return res.status(500).json({
         reply:
           "Boss, GEMINI_API_KEY environment variable set nahi hai.",
+      });
+    }
+
+    if (/503|429|high demand|overloaded/i.test(error.message)) {
+      return res.status(503).json({
+        reply:
+          "Boss, Gemini abhi busy hai. Maine dobara koshish ki, lekin abhi jawab nahi mila. Thodi der baad try karo.",
       });
     }
 
