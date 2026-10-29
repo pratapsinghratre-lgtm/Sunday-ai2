@@ -797,9 +797,7 @@ async function askGemini(prompt, imageParts = []) {
     throw new Error("GEMINI_API_KEY_MISSING");
   }
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-
-  const model = genAI.getGenerativeModel({
+  const genAI = new GoogleGenerativeAI(apiKey);const model = genAI.getGenerativeModel({
     model: MODEL_NAME,
     systemInstruction: SYSTEM_INSTRUCTION,
   });
@@ -816,4 +814,159 @@ async function askGemini(prompt, imageParts = []) {
 
 /* ---------------- API HANDLER ---------------- */
 
-module.exports = async function handler(req, res)
+module.exports = async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({
+      reply: "Method not allowed.",
+    });
+  }
+
+  try {
+    const body = req.body || {};
+
+    const cleanPrompt = String(
+      body.message || body.prompt || ""
+    ).trim();
+
+    const imageParts = getImageParts(body);
+
+    if (!cleanPrompt && imageParts.length === 0) {
+      return res.status(400).json({
+        reply: "Boss, apna message ya image bhejo.",
+      });
+    }
+
+    /* COMPANY NEWS */
+
+    if (
+      asksForCompanyNews(cleanPrompt) &&
+      imageParts.length === 0
+    ) {
+      const symbol = detectNewsSymbol(cleanPrompt);
+
+      if (!symbol) {
+        return res.status(400).json({
+          reply:
+            "Boss, news ke liye Reliance, TCS, Infosys, HDFC Bank, ICICI Bank, Tata Motors, ITC ya supported ticker ka naam likho.",
+        });
+      }
+
+      try {
+        const result = await getCompanyNews(symbol);
+
+        return res.status(200).json({
+          reply: buildNewsReply(symbol, result),
+        });
+      } catch (error) {
+        console.error(
+          "Company news error:",
+          error.message
+        );
+
+        return res.status(503).json({
+          reply:
+            "Boss, abhi Alpha Vantage aur Google News dono se news fetch nahi ho paayi. Thodi der baad dobara try karo.",
+        });
+      }
+    }
+
+    /* NIFTY / BANK NIFTY */
+
+    const index = detectIndexRequest(cleanPrompt);
+
+    if (index && imageParts.length === 0) {
+      try {
+        const data = await getIndexData(index);
+
+        return res.status(200).json({
+          reply: buildIndexReply(data),
+        });
+      } catch (error) {
+        console.error("Index data error:", error.message);
+
+        return res.status(503).json({
+          reply:
+            `Boss, abhi ${index.name} ka daily data fetch nahi ho pa raha. Provider unavailable ho sakta hai.`,
+        });
+      }
+    }
+
+    /* CRYPTO PRICES */
+
+    if (asksForLiveCryptoPrice(cleanPrompt)) {
+      try {
+        const data = await getCryptoPrices();
+
+        return res.status(200).json({
+          reply: buildCryptoReply(data),
+        });
+      } catch (error) {
+        console.error("Crypto data error:", error.message);
+
+        return res.status(503).json({
+          reply:
+            "Boss, abhi crypto prices fetch nahi ho pa rahe. Thodi der baad try karo.",
+        });
+      }
+    }
+
+    /* STOCK HISTORICAL DATA */
+
+    const stockSymbol = detectStockRequest(cleanPrompt);
+
+    if (stockSymbol && imageParts.length === 0) {
+      try {
+        const data = await getDailyStockData(stockSymbol);
+
+        return res.status(200).json({
+          reply: buildStockReply(data),
+        });
+      } catch (error) {
+        console.error("Stock data error:", error.message);
+
+        let message =
+          "Boss, abhi is stock ka daily data available nahi ho pa raha.";
+
+        if (error.message === "STOCK_API_KEY_MISSING") {
+          message =
+            "Boss, ALPHA_VANTAGE_API_KEY environment variable set nahi hai.";
+        } else if (error.message === "STOCK_API_LIMIT") {
+          message =
+            "Boss, Alpha Vantage ki API limit ya access restriction aa rahi hai.";
+        } else if (
+          error.message === "INSUFFICIENT_STOCK_HISTORY"
+        ) {
+          message =
+            "Boss, RSI-14 calculate karne ke liye paryapt historical data nahi mila.";
+        }
+
+        return res.status(503).json({
+          reply: message,
+        });
+      }
+    }
+
+    /* GENERAL CHAT / IMAGE ANALYSIS */
+
+    const reply = await askGemini(
+      cleanPrompt,
+      imageParts
+    );
+
+    return res.status(200).json({ reply });
+  } catch (error) {
+    console.error("Sunday AI error:", error.message);
+
+    if (error.message === "GEMINI_API_KEY_MISSING") {
+      return res.status(500).json({
+        reply:
+          "Boss, GEMINI_API_KEY environment variable set nahi hai.",
+      });
+    }
+
+    return res.status(500).json({
+      reply:
+        "Boss, abhi ek technical error aa gaya hai. Thodi der baad dobara try karo.",
+    });
+  }
+};
