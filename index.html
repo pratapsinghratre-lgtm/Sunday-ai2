@@ -131,6 +131,25 @@ button {
     color: white;
 }
 
+#memoryBar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px 8px;
+    background: #1f1f1f;
+}
+
+#memoryStatus {
+    flex: 1;
+    color: #aaa;
+    font-size: 12px;
+}
+
+#memoryBar button {
+    font-size: 13px;
+    padding: 8px;
+}
+
 button:disabled {
     opacity: 0.6;
 }
@@ -144,11 +163,10 @@ button:disabled {
 <div id="voiceStatus">Voice Mode बंद है</div>
 
 <div id="chatBox">
-    <div class="message bot">
-        नमस्ते Boss! मैं Sunday AI हूँ।
-        नीचे Voice Mode चालू करके मुझसे बोलकर बात कर सकते हैं।
-        आप CSC, सामान्य सवाल और Trading Chart के बारे में पूछ सकते हैं।
-    </div>
+    <div class="message bot" id="welcomeMessage">नमस्ते Boss! मैं Sunday AI हूँ।
+आप मुझसे बोलकर या लिखकर बात कर सकते हैं।
+आप CSC, सामान्य सवाल और Trading Chart के बारे में पूछ सकते हैं।</div>
+
     <div id="loading">Boss, जवाब तैयार कर रहा हूँ...</div>
 </div>
 
@@ -156,8 +174,14 @@ button:disabled {
     🎙️ Voice Mode चालू करें
 </button>
 
+<div id="memoryBar">
+    <span id="memoryStatus">🧠 Memory: चैट सेव होगी</span>
+    <button type="button" onclick="clearChatHistory()">चैट मिटाएँ</button>
+</div>
+
 <div id="inputArea">
     <label for="imageInput" class="file-label">📸</label>
+
     <input type="file" id="imageInput" accept="image/*" hidden>
 
     <input
@@ -178,6 +202,10 @@ const loadingText = document.getElementById("loading");
 const voiceButton = document.getElementById("voiceButton");
 const voiceStatus = document.getElementById("voiceStatus");
 const sendButton = document.getElementById("sendButton");
+const memoryStatus = document.getElementById("memoryStatus");
+
+const CHAT_STORAGE_KEY = "sunday_ai_chat_v1";
+const MAX_HISTORY_MESSAGES = 30;
 
 const SpeechRecognition =
     window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -187,14 +215,134 @@ let voiceMode = false;
 let isListening = false;
 let isProcessing = false;
 let isSpeaking = false;
+let conversationHistory = [];
 
-function displayMessage(text, type) {
+/* -------- PERMANENT CHAT MEMORY -------- */
+
+function saveChatHistory() {
+    try {
+        conversationHistory =
+            conversationHistory.slice(-MAX_HISTORY_MESSAGES);
+
+        localStorage.setItem(
+            CHAT_STORAGE_KEY,
+            JSON.stringify(conversationHistory)
+        );
+
+        memoryStatus.innerText =
+            "🧠 Memory: चैट इस डिवाइस पर सेव है";
+    } catch (error) {
+        memoryStatus.innerText = "Memory सेव नहीं हो पाई";
+        console.error("Chat save failed:", error);
+    }
+}
+
+function loadChatHistory() {
+    try {
+        const saved = localStorage.getItem(CHAT_STORAGE_KEY);
+
+        if (!saved) return;
+
+        const parsed = JSON.parse(saved);
+
+        if (Array.isArray(parsed)) {
+            conversationHistory = parsed
+                .filter(function (item) {
+                    return item &&
+                        (item.role === "user" ||
+                         item.role === "model") &&
+                        typeof item.text === "string";
+                })
+                .slice(-MAX_HISTORY_MESSAGES);
+        }
+    } catch (error) {
+        console.error("Chat load failed:", error);
+        conversationHistory = [];
+    }
+}
+
+function addHistory(role, text) {
+    if (!text || !String(text).trim()) return;
+
+    conversationHistory.push({
+        role: role,
+        text: String(text).slice(0, 8000)
+    });
+
+    saveChatHistory();
+}
+
+function displayMessage(text, type, shouldScroll = true) {
     const msg = document.createElement("div");
+
     msg.className = "message " + type;
     msg.innerText = text;
+
     chatBox.insertBefore(msg, loadingText);
+
+    if (shouldScroll) {
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+}
+
+function renderSavedHistory() {
+    if (!conversationHistory.length) return;
+
+    const welcome = document.getElementById("welcomeMessage");
+
+    if (welcome) {
+        welcome.remove();
+    }
+
+    conversationHistory.forEach(function (item) {
+        displayMessage(
+            item.text,
+            item.role === "user" ? "user" : "bot",
+            false
+        );
+    });
+
     chatBox.scrollTop = chatBox.scrollHeight;
 }
+
+function clearChatHistory() {
+    if (isProcessing) {
+        alert("Boss, जवाब आने तक इंतज़ार करें।");
+        return;
+    }
+
+    const confirmed = confirm(
+        "क्या आप इस डिवाइस में सेव पूरी चैट मिटाना चाहते हैं?"
+    );
+
+    if (!confirmed) return;
+
+    conversationHistory = [];
+
+    try {
+        localStorage.removeItem(CHAT_STORAGE_KEY);
+    } catch (error) {
+        console.error("Chat clear failed:", error);
+    }
+
+    chatBox.querySelectorAll(".message").forEach(function (element) {
+        element.remove();
+    });
+
+    const welcome = document.createElement("div");
+
+    welcome.id = "welcomeMessage";
+    welcome.className = "message bot";
+    welcome.innerText =
+        "नमस्ते Boss! मैं Sunday AI हूँ।\n" +
+        "आप मुझसे बोलकर या लिखकर बात कर सकते हैं।";
+
+    chatBox.insertBefore(welcome, loadingText);
+
+    memoryStatus.innerText = "🧠 Memory: नई चैट शुरू हुई";
+}
+
+/* -------- VOICE STATUS -------- */
 
 function showLoading(show) {
     loadingText.style.display = show ? "block" : "none";
@@ -206,10 +354,12 @@ function updateVoiceStatus(text) {
     voiceStatus.innerText = text;
 }
 
+/* -------- SPEECH RECOGNITION -------- */
+
 function createRecognition() {
     if (!SpeechRecognition) {
         displayMessage(
-            "Boss, इस ब्राउज़र में Voice Recognition उपलब्ध नहीं है। Chrome में वेबसाइट खोलकर कोशिश करें।",
+            "Boss, इस ब्राउज़र में Voice Recognition उपलब्ध नहीं है। Chrome में कोशिश करें।",
             "bot"
         );
         return false;
@@ -231,7 +381,6 @@ function createRecognition() {
 
         if (transcript && transcript.trim()) {
             promptInput.value = transcript.trim();
-            displayMessage("🎙️ " + transcript.trim(), "user");
             sendMessageToAI(true);
         }
     };
@@ -239,11 +388,14 @@ function createRecognition() {
     recognition.onerror = function (event) {
         isListening = false;
 
-        if (event.error === "not-allowed" ||
-            event.error === "service-not-allowed") {
+        if (
+            event.error === "not-allowed" ||
+            event.error === "service-not-allowed"
+        ) {
             voiceMode = false;
             updateVoiceStatus("माइक्रोफोन की अनुमति दें");
             updateVoiceButton();
+
             displayMessage(
                 "Boss, ब्राउज़र की Settings में माइक्रोफोन की अनुमति दें।",
                 "bot"
@@ -282,7 +434,7 @@ function startListening() {
     try {
         recognition.start();
     } catch (error) {
-        // Browser पहले से सुन रहा हो तो दोबारा start नहीं करेंगे।
+        // Recognition पहले से सक्रिय हो तो दोबारा शुरू नहीं करेंगे।
     }
 }
 
@@ -333,6 +485,8 @@ function toggleVoiceMode() {
     startListening();
 }
 
+/* -------- TEXT TO SPEECH -------- */
+
 function speakText(text) {
     return new Promise(function (resolve) {
         if (!("speechSynthesis" in window)) {
@@ -342,7 +496,7 @@ function speakText(text) {
 
         window.speechSynthesis.cancel();
 
-        const cleanText = text
+        const cleanText = String(text)
             .replace(/[*#`_]/g, "")
             .replace(/https?:\/\/\S+/g, "लिंक")
             .trim();
@@ -353,15 +507,17 @@ function speakText(text) {
         }
 
         const utterance = new SpeechSynthesisUtterance(cleanText);
+
         utterance.lang = "hi-IN";
         utterance.rate = 1;
         utterance.pitch = 1;
 
-        const voices = window.speechSynthesis.getVoices();
-        const hindiVoice = voices.find(function (voice) {
-            return voice.lang &&
-                voice.lang.toLowerCase().startsWith("hi");
-        });
+        const hindiVoice = window.speechSynthesis
+            .getVoices()
+            .find(function (voice) {
+                return voice.lang &&
+                    voice.lang.toLowerCase().startsWith("hi");
+            });
 
         if (hindiVoice) {
             utterance.voice = hindiVoice;
@@ -395,6 +551,8 @@ function speakText(text) {
     });
 }
 
+/* -------- SEND MESSAGE TO AI -------- */
+
 async function sendMessageToAI(fromVoice = false) {
     if (isProcessing) return;
 
@@ -403,8 +561,22 @@ async function sendMessageToAI(fromVoice = false) {
 
     if (!promptText && !file) return;
 
-    if (!fromVoice && promptText) {
+    /*
+      Current message जोड़ने से पहले पुरानी बातचीत की कॉपी।
+      यही API को भेजी जाएगी।
+    */
+    const historyForRequest = conversationHistory
+        .slice(-20)
+        .map(function (item) {
+            return {
+                role: item.role,
+                text: item.text
+            };
+        });
+
+    if (promptText) {
         displayMessage(promptText, "user");
+        addHistory("user", promptText);
     }
 
     promptInput.value = "";
@@ -415,6 +587,7 @@ async function sendMessageToAI(fromVoice = false) {
     try {
         if (file) {
             displayMessage("📸 फोटो अपलोड की गई", "user");
+            addHistory("user", "[फोटो अपलोड की गई]");
 
             fileMimeType = file.type || "image/jpeg";
 
@@ -422,8 +595,7 @@ async function sendMessageToAI(fromVoice = false) {
                 const reader = new FileReader();
 
                 reader.onload = function () {
-                    const result = reader.result;
-                    resolve(result.split(",")[1]);
+                    resolve(reader.result.split(",")[1]);
                 };
 
                 reader.onerror = reject;
@@ -445,7 +617,8 @@ async function sendMessageToAI(fromVoice = false) {
             body: JSON.stringify({
                 prompt: promptText,
                 image: base64Image,
-                mimeType: fileMimeType
+                mimeType: fileMimeType,
+                history: historyForRequest
             })
         });
 
@@ -453,11 +626,15 @@ async function sendMessageToAI(fromVoice = false) {
 
         if (!response.ok || !data.reply) {
             throw new Error(
-                data.details || data.error || "AI जवाब नहीं दे पाया"
+                data.details ||
+                data.error ||
+                data.reply ||
+                "AI जवाब नहीं दे पाया"
             );
         }
 
         displayMessage(data.reply, "bot");
+        addHistory("model", data.reply);
 
         if (voiceMode) {
             await speakText(data.reply);
@@ -469,6 +646,7 @@ async function sendMessageToAI(fromVoice = false) {
             (error.message || "सर्वर से कनेक्ट नहीं हो पाया।");
 
         displayMessage(errorMessage, "bot");
+        addHistory("model", errorMessage);
 
         if (voiceMode) {
             await speakText(errorMessage);
@@ -484,11 +662,15 @@ async function sendMessageToAI(fromVoice = false) {
     }
 }
 
+/* -------- ENTER KEY -------- */
+
 promptInput.addEventListener("keydown", function (event) {
     if (event.key === "Enter") {
         sendMessageToAI();
     }
 });
+
+/* -------- CLEANUP -------- */
 
 window.addEventListener("beforeunload", function () {
     if (recognition) {
@@ -501,6 +683,11 @@ window.addEventListener("beforeunload", function () {
         window.speechSynthesis.cancel();
     }
 });
+
+/* -------- RESTORE SAVED CHAT -------- */
+
+loadChatHistory();
+renderSavedHistory();
 </script>
 
 </body>
