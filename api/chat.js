@@ -1,9 +1,10 @@
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+// ==========================================
+// SUNDAY AI — PART 1 OF 3
+// CONFIGURATION, HELPERS, CRYPTO & MEMORY
+// ==========================================
 
-// ==========================================
-// SUNDAY AI — API/CHAT
-// PART 1 OF 3: CONFIGURATION + BASIC HELPERS
-// ==========================================
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+const https = require("https");
 
 const MODEL_NAME = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
@@ -11,342 +12,348 @@ const SYSTEM_INSTRUCTION = `
 You are Sunday AI, a helpful personal AI assistant.
 
 Rules:
-- Speak naturally and helpfully.
-- Understand Hindi, Hinglish, and English.
-- Explain technical topics in simple steps.
-- Use market data carefully and distinguish facts from estimates.
-- Never claim that a trade or investment is guaranteed to profit.
-- Explain financial information for education, not as guaranteed
-  personalized investment advice.
-- When information is unavailable, clearly say so.
-- If the user sends an image, analyze only what is actually visible.
-- Remember relevant context provided in the current conversation.
+- Reply naturally in Hindi or Hinglish when appropriate.
+- Be friendly, clear, and respectful.
+- Explain technical topics step by step.
+- Use conversation history when it is provided.
+- Do not claim to remember conversations that were not provided.
+- Never invent live prices, news, or market data.
+- Clearly distinguish verified data from estimates.
+- Explain financial information educationally; never promise profits.
+- For coding requests, preserve the user's existing features.
+- If information is missing, ask a useful clarification.
 `;
 
-// ---------- BASIC RESPONSE HELPERS ----------
+// ------------------------------------------
+// HTTPS JSON HELPER
+// ------------------------------------------
 
-function sendJSON(res, statusCode, data) {
-  return res.status(statusCode).json(data);
-}
-
-function getText(value) {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function normalizeSymbol(value) {
-  return String(value || "")
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9.^=_-]/g, "");
-}
-
-function delay(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function isTemporaryError(error) {
-  const message = String(error?.message || error || "");
-
-  return /429|500|502|503|504|overloaded|high demand|temporarily unavailable|timeout|timed out/i
-    .test(message);
-}
-
-// ---------- FETCH WITH TIMEOUT ----------
-
-async function fetchJSON(url, timeoutMs = 12000) {
-  const controller = new AbortController();
-
-  const timer = setTimeout(() => {
-    controller.abort();
-  }, timeoutMs);
-
-  try {
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "Accept": "application/json",
-        "User-Agent": "SundayAI/1.0"
+function fetchJSON(url, headers = {}, timeout = 12000) {
+  return new Promise((resolve, reject) => {
+    const request = https.get(
+      url,
+      {
+        headers: {
+          "User-Agent": "SundayAI/1.0",
+          Accept: "application/json",
+          ...headers,
+        },
       },
-      signal: controller.signal
+      (response) => {
+        let data = "";
+
+        response.setEncoding("utf8");
+
+        response.on("data", (chunk) => {
+          data += chunk;
+        });
+
+        response.on("end", () => {
+          if (
+            response.statusCode < 200 ||
+            response.statusCode >= 300
+          ) {
+            return reject(
+              new Error(
+                `API request failed with status ${response.statusCode}`
+              )
+            );
+          }
+
+          try {
+            resolve(JSON.parse(data));
+          } catch {
+            reject(new Error("API returned invalid JSON"));
+          }
+        });
+      }
+    );
+
+    request.setTimeout(timeout, () => {
+      request.destroy(new Error("API request timed out"));
     });
 
-    if (!response.ok) {
-      throw new Error(`HTTP_${response.status}`);
-    }
-
-    return await response.json();
-  } finally {
-    clearTimeout(timer);
-  }
+    request.on("error", reject);
+  });
 }
 
-// ---------- CRYPTO PRICE DATA ----------
+// ------------------------------------------
+// HTTPS TEXT HELPER
+// ------------------------------------------
 
-async function getCryptoPrice(query) {
-  const text = String(query || "").toLowerCase();
+function fetchText(url, headers = {}, timeout = 12000) {
+  return new Promise((resolve, reject) => {
+    const request = https.get(
+      url,
+      {
+        headers: {
+          "User-Agent": "SundayAI/1.0",
+          ...headers,
+        },
+      },
+      (response) => {
+        let data = "";
 
-  const coins = [
-    { names: ["bitcoin", "btc"], id: "bitcoin" },
-    { names: ["ethereum", "eth"], id: "ethereum" },
-    { names: ["solana", "sol"], id: "solana" },
-    { names: ["dogecoin", "doge"], id: "dogecoin" },
-    { names: ["ripple", "xrp"], id: "ripple" },
-    { names: ["cardano", "ada"], id: "cardano" },
-    { names: ["binance coin", "bnb"], id: "binancecoin" },
-    { names: ["tron", "trx"], id: "tron" },
-    { names: ["avalanche", "avax"], id: "avalanche-2" },
-    { names: ["polkadot", "dot"], id: "polkadot" }
-  ];
+        response.setEncoding("utf8");
 
-  const coin = coins.find(item =>
-    item.names.some(name => {
-      const pattern = new RegExp(
-        `(^|[^a-z0-9])${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^a-z0-9]|$)`,
-        "i"
-      );
+        response.on("data", (chunk) => {
+          data += chunk;
+        });
 
-      return pattern.test(text);
-    })
-  );
+        response.on("end", () => {
+          if (
+            response.statusCode < 200 ||
+            response.statusCode >= 300
+          ) {
+            return reject(
+              new Error(
+                `Request failed with status ${response.statusCode}`
+              )
+            );
+          }
 
-  if (!coin) {
-    return null;
-  }
+          resolve(data);
+        });
+      }
+    );
 
-  const url =
-    "https://api.coingecko.com/api/v3/simple/price" +
-    `?ids=${encodeURIComponent(coin.id)}` +
-    "&vs_currencies=usd,inr" +
-    "&include_24hr_change=true";
+    request.setTimeout(timeout, () => {
+      request.destroy(new Error("Request timed out"));
+    });
 
-  const data = await fetchJSON(url);
-  const price = data?.[coin.id];
-
-  if (!price) {
-    throw new Error("CRYPTO_PRICE_UNAVAILABLE");
-  }
-
-  return {
-    name: coin.names[0],
-    id: coin.id,
-    usd: price.usd ?? null,
-    inr: price.inr ?? null,
-    change24h: price.usd_24h_change ?? null
-  };
+    request.on("error", reject);
+  });
 }
 
-function formatCryptoReply(coin) {
-  const change = Number(coin.change24h);
+// ------------------------------------------
+// FORMATTING HELPERS
+// ------------------------------------------
 
-  return [
-    `🪙 ${coin.name.toUpperCase()} ka latest available price:`,
-    `USD: ${coin.usd == null ? "Unavailable" : "$" + coin.usd}`,
-    `INR: ${coin.inr == null ? "Unavailable" : "₹" + coin.inr}`,
-    `24-hour change: ${Number.isFinite(change) ? change.toFixed(2) + "%" : "Unavailable"}`,
-    "",
-    "Note: Price badalti rehti hai. Yeh live trading guarantee nahi hai."
-  ].join("\n");
+function formatINR(value) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return "Unavailable";
+  }
+
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 2,
+  }).format(number);
 }
 
-// ---------- HISTORY INPUT CLEANUP ----------
+function formatTime(timestamp) {
+  const date = new Date(timestamp);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Unavailable";
+  }
+
+  return date.toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
+function dateInIndia() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+// ------------------------------------------
+// CONVERSATION MEMORY / HISTORY
+// ------------------------------------------
+
+// This keeps the recent history supplied by the frontend.
+// It does not independently save permanent conversation data.
 
 function sanitizeHistory(history) {
   if (!Array.isArray(history)) {
     return [];
   }
 
-  const cleaned = [];
-
-  for (const item of history.slice(-20)) {
-    if (!item || typeof item.text !== "string") {
-      continue;
-    }
-
-    const role = item.role;
-
-    if (role !== "user" && role !== "model") {
-      continue;
-    }
-
-    const text = item.text.trim();
-
-    if (!text) {
-      continue;
-    }
-
-    cleaned.push({
-      role,
-      parts: [{ text: text.slice(0, 6000) }]
-    });
-  }
-
-  // Gemini chat history should begin with a user message.
-  while (cleaned.length && cleaned[0].role !== "user") {
-    cleaned.shift();
-  }
-
-  // Ensure alternating user/model messages.
-  const valid = [];
-
-  for (const item of cleaned) {
-    if (
-      valid.length === 0 ||
-      valid[valid.length - 1].role !== item.role
-    ) {
-      valid.push(item);
-    }
-  }
-
-  // A previous assistant reply should end the supplied history.
-  while (valid.length && valid[valid.length - 1].role !== "model") {
-    valid.pop();
-  }
-
-  return valid;
-                                     }// ==========================================
-// SUNDAY AI — PART 2 OF 3
-// STOCKS + INDICES + TECHNICAL ANALYSIS + NEWS
-// Paste this directly below Part 1.
-// ==========================================
-
-// ---------- STOCK / INDEX SYMBOLS ----------
-
-const INDEX_SYMBOLS = {
-  "NIFTY": "^NSEI",
-  "NIFTY 50": "^NSEI",
-  "BANK NIFTY": "^NSEBANK",
-  "BANKNIFTY": "^NSEBANK",
-  "SENSEX": "^BSESN"
-};
-
-function getIndexSymbol(message) {
-  const text = String(message || "").toUpperCase();
-
-  if (text.includes("BANK NIFTY") || text.includes("BANKNIFTY")) {
-    return "^NSEBANK";
-  }
-
-  if (text.includes("SENSEX")) {
-    return "^BSESN";
-  }
-
-  if (text.includes("NIFTY")) {
-    return "^NSEI";
-  }
-
-  return null;
+  return history
+    .filter((item) => {
+      return (
+        item &&
+        typeof item === "object" &&
+        ["user", "assistant", "model"].includes(item.role) &&
+        typeof item.content === "string" &&
+        item.content.trim().length > 0
+      );
+    })
+    .slice(-20)
+    .map((item) => ({
+      role: item.role === "assistant" ? "model" : item.role,
+      content: item.content.trim().slice(0, 6000),
+    }));
 }
 
-function getStockSymbol(message) {
-  let text = String(message || "").trim().toUpperCase();
+// ------------------------------------------
+// CRYPTO PRICE HELPERS
+// ------------------------------------------
 
-  // Remove common stock-analysis phrases.
-  text = text
-    .replace(/\b(ANALYZE|ANALYSIS|CHART|PRICE|STOCK|SHARE|STOCK PRICE|SHARE PRICE)\b/g, " ")
-    .replace(/\b(TODAY|DAILY|HISTORY|HISTORICAL|RSI|SUPPORT|RESISTANCE)\b/g, " ")
-    .replace(/\b(NIFTY 50|BANK NIFTY|BANKNIFTY|SENSEX|NIFTY)\b/g, " ")
-    .replace(/\b(PRICE OF|STOCK OF|SHARE OF|ANALYZE THE)\b/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  if (!text) return null;
-
-  // Convert common Indian company names into Yahoo Finance symbols.
-  const aliases = {
-    "RELIANCE": "RELIANCE.NS",
-    "TCS": "TCS.NS",
-    "INFOSYS": "INFY.NS",
-    "HDFC BANK": "HDFCBANK.NS",
-    "ICICI BANK": "ICICIBANK.NS",
-    "SBIN": "SBIN.NS",
-    "SBI": "SBIN.NS",
-    "ITC": "ITC.NS",
-    "TATA MOTORS": "TATAMOTORS.NS",
-    "BHARTI AIRTEL": "BHARTIARTL.NS",
-    "WIPRO": "WIPRO.NS",
-    "ADANI PORTS": "ADANIPORTS.NS",
-    "TATA STEEL": "TATASTEEL.NS",
-    "MARUTI": "MARUTI.NS",
-    "LT": "LT.NS",
-    "HINDUSTAN UNILEVER": "HINDUNILVR.NS",
-    "BAJAJ FINANCE": "BAJFINANCE.NS",
-    "AXIS BANK": "AXISBANK.NS",
-    "KOTAK BANK": "KOTAKBANK.NS",
-    "KOTAK MAHINDRA BANK": "KOTAKBANK.NS"
-  };
-
-  if (aliases[text]) return aliases[text];
-
-  // Explicit Yahoo-style symbols, such as RELIANCE.NS or AAPL.
-  if (/^[A-Z0-9^=.-]{1,30}$/.test(text)) {
-    if (text.endsWith(".NS") || text.endsWith(".BO")) {
-      return text;
-    }
-
-    // If user supplied a bare Indian stock ticker, assume NSE.
-    if (/^[A-Z][A-Z0-9&-]{0,19}$/.test(text)) {
-      return `${text}.NS`;
-    }
-
-    return text;
-  }
-
-  return null;
-}
-
-// ---------- YAHOO FINANCE HISTORICAL DATA ----------
-
-async function getYahooChart(symbol, range = "3mo", interval = "1d") {
-  const safeSymbol = String(symbol || "").trim();
-
-  if (!safeSymbol) {
-    throw new Error("STOCK_SYMBOL_MISSING");
-  }
-
+async function getCryptoPrices() {
   const url =
-    "https://query1.finance.yahoo.com/v8/finance/chart/" +
-    encodeURIComponent(safeSymbol) +
-    `?range=${encodeURIComponent(range)}` +
-    `&interval=${encodeURIComponent(interval)}`;
+    "https://api.coingecko.com/api/v3/simple/price" +
+    "?ids=bitcoin,ethereum" +
+    "&vs_currencies=usd,inr" +
+    "&include_24hr_change=true";
 
   const data = await fetchJSON(url);
-  const result = data?.chart?.result?.[0];
-
-  if (!result) {
-    const message = data?.chart?.error?.description;
-    throw new Error(message || "STOCK_DATA_UNAVAILABLE");
-  }
-
-  const timestamps = result.timestamp || [];
-  const quote = result.indicators?.quote?.[0] || {};
-
-  const rows = timestamps.map((timestamp, index) => ({
-    date: new Date(timestamp * 1000).toISOString().slice(0, 10),
-    open: quote.open?.[index] ?? null,
-    high: quote.high?.[index] ?? null,
-    low: quote.low?.[index] ?? null,
-    close: quote.close?.[index] ?? null,
-    volume: quote.volume?.[index] ?? null
-  })).filter(row =>
-    Number.isFinite(row.close) &&
-    Number.isFinite(row.high) &&
-    Number.isFinite(row.low)
-  );
 
   return {
-    symbol: result.meta?.symbol || safeSymbol,
-    currency: result.meta?.currency || "Unknown",
-    exchange: result.meta?.exchangeName || "Unknown",
-    price: result.meta?.regularMarketPrice ?? rows.at(-1)?.close ?? null,
-    previousClose: result.meta?.chartPreviousClose ?? null,
-    rows
+    bitcoin: data.bitcoin || null,
+    ethereum: data.ethereum || null,
+    updatedAt: new Date().toISOString(),
   };
 }
 
-// ---------- RSI CALCULATION ----------
+function asksForLiveCryptoPrice(message) {
+  const text = String(message || "").toLowerCase();
+
+  const cryptoWords =
+    /\b(bitcoin|btc|ethereum|eth|crypto|cryptocurrency)\b/.test(text);
+
+  const priceWords =
+    /\b(price|rate|value|live|current|latest|cost|कीमत|भाव|दाम)\b/.test(text);
+
+  return cryptoWords && priceWords;
+}
+
+function buildCryptoReply(data) {
+  if (!data || (!data.bitcoin && !data.ethereum)) {
+    return "Boss, abhi crypto prices available nahi hain. Thodi der baad try karein.";
+  }
+
+  function describe(name, item) {
+    if (!item) {
+      return `${name}: data unavailable`;
+    }
+
+    const usd = Number(item.usd);
+    const inr = Number(item.inr);
+    const change = Number(item.usd_24h_change);
+
+    const lines = [`${name}:`];
+
+    if (Number.isFinite(inr)) {
+      lines.push(`INR price: ${formatINR(inr)}`);
+    }
+
+    if (Number.isFinite(usd)) {
+      lines.push(
+        `USD price: ${new Intl.NumberFormat("en-US", {
+          style: "currency",
+          currency: "USD",
+          maximumFractionDigits: 2,
+        }).format(usd)}`
+      );
+    }
+
+    if (Number.isFinite(change)) {
+      lines.push(`24-hour change: ${change.toFixed(2)}%`);
+    }
+
+    return lines.join("\n");
+  }
+
+  return [
+    "Live crypto data response:",
+    describe("Bitcoin (BTC)", data.bitcoin),
+    describe("Ethereum (ETH)", data.ethereum),
+    `Data checked: ${formatTime(data.updatedAt)}`,
+    "",
+    "Note: Prices can change quickly and may be delayed.",
+  ].join("\n");
+}
+
+// ==========================================
+// END OF PART 1
+// PART 2 WILL CONTAIN STOCKS, RSI, INDICES
+// AND COMPANY NEWS HELPERS.
+// ==========================================// ==========================================
+// SUNDAY AI — PART 2 OF 3
+// STOCKS, RSI, INDICES AND COMPANY NEWS
+// Paste directly below Part 1.
+// ==========================================
+
+// ------------------------------------------
+// STOCK SYMBOL ALIASES
+// ------------------------------------------
+
+const COMPANY_ALIASES = {
+  reliance: "RELIANCE.BSE",
+  "reliance industries": "RELIANCE.BSE",
+  tcs: "TCS.BSE",
+  "tata consultancy services": "TCS.BSE",
+  infosys: "INFY.BSE",
+  infy: "INFY.BSE",
+  itc: "ITC.BSE",
+  "tata motors": "TATAMOTORS.BSE",
+  "hdfc bank": "HDFCBANK.BSE",
+  "icici bank": "ICICIBANK.BSE",
+};
+
+// ------------------------------------------
+// DETECT STOCK SYMBOL
+// ------------------------------------------
+
+function detectStockSymbol(message) {
+  const text = String(message || "").toLowerCase();
+
+  for (const [name, symbol] of Object.entries(COMPANY_ALIASES)) {
+    if (text.includes(name)) {
+      return symbol;
+    }
+  }
+
+  const explicit = String(message || "").match(
+    /\b([A-Z]{2,12})\.(BSE|NSE)\b/i
+  );
+
+  return explicit ? explicit[1].toUpperCase() + "." +
+    explicit[2].toUpperCase() : null;
+}
+
+// ------------------------------------------
+// DETECT STOCK REQUEST
+// ------------------------------------------
+
+function detectStockRequest(message) {
+  const text = String(message || "").toLowerCase();
+
+  const asksStock =
+    /\b(stock|share|shares|price|chart|history|historical|rsi|support|resistance|close|market data)\b/.test(text) ||
+    /शेयर|स्टॉक|भाव|कीमत|सपोर्ट|रेजिस्टेंस/.test(text);
+
+  if (!asksStock) {
+    return null;
+  }
+
+  return detectStockSymbol(message);
+}
+
+// ------------------------------------------
+// RSI CALCULATION
+// ------------------------------------------
 
 function calculateRSI(closes, period = 14) {
   if (!Array.isArray(closes) || closes.length <= period) {
+    return null;
+  }
+
+  const values = closes
+    .map(Number)
+    .filter(Number.isFinite);
+
+  if (values.length <= period) {
     return null;
   }
 
@@ -354,165 +361,231 @@ function calculateRSI(closes, period = 14) {
   let losses = 0;
 
   for (let i = 1; i <= period; i++) {
-    const change = closes[i] - closes[i - 1];
+    const change = values[i] - values[i - 1];
 
     if (change > 0) gains += change;
-    else losses += Math.abs(change);
+    if (change < 0) losses -= change;
   }
 
   let averageGain = gains / period;
   let averageLoss = losses / period;
 
-  for (let i = period + 1; i < closes.length; i++) {
-    const change = closes[i] - closes[i - 1];
-    const gain = Math.max(change, 0);
-    const loss = Math.max(-change, 0);
+  for (let i = period + 1; i < values.length; i++) {
+    const change = values[i] - values[i - 1];
 
     averageGain =
-      (averageGain * (period - 1) + gain) / period;
+      (averageGain * (period - 1) + Math.max(change, 0)) /
+      period;
 
     averageLoss =
-      (averageLoss * (period - 1) + loss) / period;
+      (averageLoss * (period - 1) + Math.max(-change, 0)) /
+      period;
   }
 
-  if (averageLoss === 0) return 100;
+  if (averageLoss === 0) {
+    return averageGain === 0 ? 50 : 100;
+  }
 
-  const rs = averageGain / averageLoss;
-  return 100 - 100 / (1 + rs);
+  const relativeStrength = averageGain / averageLoss;
+
+  return 100 - 100 / (1 + relativeStrength);
 }
 
-// ---------- SUPPORT / RESISTANCE ----------
+// ------------------------------------------
+// ALPHA VANTAGE STOCK HISTORY
+// Requires ALPHA_VANTAGE_API_KEY in environment.
+// ------------------------------------------
 
-function calculateSupportResistance(rows, lookback = 20) {
-  if (!Array.isArray(rows) || rows.length === 0) {
-    return { support: null, resistance: null };
+async function getDailyStockData(symbol) {
+  const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
+
+  if (!apiKey) {
+    throw new Error("ALPHA_VANTAGE_API_KEY is not configured.");
   }
 
-  const recent = rows.slice(-lookback);
+  const url =
+    "https://www.alphavantage.co/query" +
+    `?function=TIME_SERIES_DAILY&symbol=${encodeURIComponent(symbol)}` +
+    `&outputsize=compact&apikey=${encodeURIComponent(apiKey)}`;
 
-  const lows = recent
-    .map(row => row.low)
-    .filter(Number.isFinite);
+  const data = await fetchJSON(url);
 
-  const highs = recent
-    .map(row => row.high)
-    .filter(Number.isFinite);
+  if (data.Note || data.Information) {
+    throw new Error(
+      "Alpha Vantage request limit reached. Try again later."
+    );
+  }
+
+  if (data["Error Message"]) {
+    throw new Error(data["Error Message"]);
+  }
+
+  const series = data["Time Series (Daily)"];
+
+  if (!series) {
+    throw new Error("Daily stock data is unavailable.");
+  }
+
+  const dates = Object.keys(series).sort().reverse();
+
+  const rows = dates.map((date) => ({
+    date,
+    open: Number(series[date]["1. open"]),
+    high: Number(series[date]["2. high"]),
+    low: Number(series[date]["3. low"]),
+    close: Number(series[date]["4. close"]),
+    volume: Number(series[date]["5. volume"]),
+  }));
+
+  const validRows = rows.filter((row) =>
+    Number.isFinite(row.close)
+  );
+
+  if (!validRows.length) {
+    throw new Error("No valid stock history was returned.");
+  }
+
+  const latest = validRows[0];
+  const previous = validRows[1] || null;
+  const closes = validRows.map((row) => row.close).reverse();
+
+  const change =
+    previous && previous.close !== 0
+      ? ((latest.close - previous.close) / previous.close) * 100
+      : null;
+
+  const recent = validRows.slice(0, 14);
+  const lows = recent.map((row) => row.low).filter(Number.isFinite);
+  const highs = recent.map((row) => row.high).filter(Number.isFinite);
 
   return {
-    support: lows.length ? Math.min(...lows) : null,
-    resistance: highs.length ? Math.max(...highs) : null
-  };
-}
-
-// ---------- STOCK ANALYSIS REPORT ----------
-
-async function analyzeStock(symbol) {
-  const data = await getYahooChart(symbol, "3mo", "1d");
-  const rows = data.rows;
-
-  if (rows.length < 15) {
-    throw new Error("NOT_ENOUGH_STOCK_HISTORY");
-  }
-
-  const closes = rows.map(row => row.close);
-  const latest = rows[rows.length - 1];
-  const previous = rows[rows.length - 2];
-
-  const rsi = calculateRSI(closes, 14);
-  const levels = calculateSupportResistance(rows, 20);
-
-  const change = previous.close
-    ? ((latest.close - previous.close) / previous.close) * 100
-    : null;
-
-  let rsiStatus = "Neutral range";
-
-  if (rsi !== null && rsi >= 70) {
-    rsiStatus = "Potentially overbought";
-  } else if (rsi !== null && rsi <= 30) {
-    rsiStatus = "Potentially oversold";
-  }
-
-  return {
-    symbol: data.symbol,
-    currency: data.currency,
-    latestDate: latest.date,
-    latestClose: latest.close,
-    previousClose: previous.close,
+    symbol,
+    date: latest.date,
+    close: latest.close,
+    previousClose: previous ? previous.close : null,
     dailyChangePercent: change,
-    rsi14: rsi,
-    rsiStatus,
-    support: levels.support,
-    resistance: levels.resistance,
-    history: rows.slice(-20)
+    rsi14: calculateRSI(closes, 14),
+    support: lows.length ? Math.min(...lows) : null,
+    resistance: highs.length ? Math.max(...highs) : null,
+    volume: latest.volume,
   };
 }
 
-function formatStockReport(report) {
-  const money = value =>
-    Number.isFinite(value) ? value.toFixed(2) : "Unavailable";
+// ------------------------------------------
+// BUILD STOCK REPLY
+// ------------------------------------------
 
-  const percent = value =>
-    Number.isFinite(value) ? `${value.toFixed(2)}%` : "Unavailable";
+function buildStockReply(report) {
+  const money = (value) =>
+    Number.isFinite(Number(value))
+      ? Number(value).toFixed(2)
+      : "Unavailable";
+
+  const percent = (value) =>
+    Number.isFinite(Number(value))
+      ? `${Number(value).toFixed(2)}%`
+      : "Unavailable";
 
   return [
-    `📈 Stock analysis: ${report.symbol}`,
-    `Latest available date: ${report.latestDate}`,
-    `Closing price: ${money(report.latestClose)} ${report.currency}`,
-    `Previous close: ${money(report.previousClose)} ${report.currency}`,
+    `Stock: ${report.symbol}`,
+    `Latest available date: ${report.date}`,
+    `Close: ₹${money(report.close)}`,
+    `Previous close: ₹${money(report.previousClose)}`,
     `Daily change: ${percent(report.dailyChangePercent)}`,
     `RSI (14): ${money(report.rsi14)}`,
-    `RSI interpretation: ${report.rsiStatus}`,
-    `Support estimate (recent 20 sessions): ${money(report.support)}`,
-    `Resistance estimate (recent 20 sessions): ${money(report.resistance)}`,
+    `Support estimate: ₹${money(report.support)}`,
+    `Resistance estimate: ₹${money(report.resistance)}`,
+    `Volume: ${money(report.volume)}`,
     "",
-    "These are historical-data-based technical indicators, not guaranteed predictions.",
-    "Market prices may be delayed. Verify prices with your broker before making decisions."
+    "Note: Support and resistance are historical estimates, not guarantees.",
   ].join("\n");
 }
 
-// ---------- NIFTY / BANK NIFTY / SENSEX ----------
+// ------------------------------------------
+// DETECT INDEX REQUEST
+// ------------------------------------------
 
-async function analyzeIndex(message) {
-  const symbol = getIndexSymbol(message);
+function detectIndexRequest(message) {
+  const text = String(message || "").toLowerCase();
 
-  if (!symbol) return null;
-
-  const data = await getYahooChart(symbol, "3mo", "1d");
-  const rows = data.rows;
-
-  if (!rows.length) {
-    throw new Error("INDEX_DATA_UNAVAILABLE");
+  if (text.includes("bank nifty") || text.includes("banknifty")) {
+    return { symbol: "^NSEBANK", name: "BANK NIFTY" };
   }
 
-  const latest = rows[rows.length - 1];
-  const previous = rows[rows.length - 2];
+  if (
+    text.includes("nifty 50") ||
+    text.includes("nifty50") ||
+    /\bnifty\b/.test(text)
+  ) {
+    return { symbol: "^NSEI", name: "NIFTY 50" };
+  }
 
-  const change = previous?.close
-    ? ((latest.close - previous.close) / previous.close) * 100
-    : null;
+  return null;
+}
 
-  const levels = calculateSupportResistance(rows, 20);
-  const rsi = calculateRSI(rows.map(row => row.close), 14);
+// ------------------------------------------
+// YAHOO FINANCE INDEX DATA
+// ------------------------------------------
+
+async function getIndexData(index) {
+  const url =
+    "https://query1.finance.yahoo.com/v8/finance/chart/" +
+    encodeURIComponent(index.symbol) +
+    "?range=5d&interval=1d";
+
+  const data = await fetchJSON(url);
+  const result = data?.chart?.result?.[0];
+
+  if (!result || !result.timestamp?.length) {
+    throw new Error("Index data is currently unavailable.");
+  }
+
+  const quotes = result.indicators?.quote?.[0];
+
+  if (!quotes?.close?.length) {
+    throw new Error("Index closing data is unavailable.");
+  }
+
+  const valid = result.timestamp
+    .map((timestamp, i) => ({
+      date: new Date(timestamp * 1000).toISOString().slice(0, 10),
+      close: Number(quotes.close[i]),
+    }))
+    .filter((row) => Number.isFinite(row.close));
+
+  if (!valid.length) {
+    throw new Error("No valid index values were returned.");
+  }
+
+  const latest = valid[valid.length - 1];
+  const previous = valid.length > 1 ? valid[valid.length - 2] : null;
 
   return {
-    symbol: data.symbol,
+    symbol: index.name,
     date: latest.date,
     close: latest.close,
     previousClose: previous?.close ?? null,
-    dailyChangePercent: change,
-    rsi14: rsi,
-    support: levels.support,
-    resistance: levels.resistance
+    dailyChangePercent:
+      previous && previous.close !== 0
+        ? ((latest.close - previous.close) / previous.close) * 100
+        : null,
   };
 }
 
-function formatIndexReport(report) {
-  const money = value =>
-    Number.isFinite(value) ? value.toFixed(2) : "Unavailable";
+// ------------------------------------------
+// BUILD INDEX REPLY
+// ------------------------------------------
 
-  const percent = value =>
-    Number.isFinite(value) ? `${value.toFixed(2)}%` : "Unavailable";
+function buildIndexReply(report) {
+  const money = (value) =>
+    Number.isFinite(Number(value))
+      ? Number(value).toFixed(2)
+      : "Unavailable";
+
+  const percent = (value) =>
+    Number.isFinite(Number(value))
+      ? `${Number(value).toFixed(2)}%`
+      : "Unavailable";
 
   return [
     `📊 Index: ${report.symbol}`,
@@ -520,12 +593,97 @@ function formatIndexReport(report) {
     `Close: ${money(report.close)}`,
     `Previous close: ${money(report.previousClose)}`,
     `Daily change: ${percent(report.dailyChangePercent)}`,
-    `RSI (14): ${money(report.rsi14)}`,
-    `Support estimate: ${money(report.support)}`,
-    `Resistance estimate: ${money(report.res// ==========================================
+  ].join("\n");
+}
+
+// ------------------------------------------
+// COMPANY NEWS HELPERS
+// ------------------------------------------
+
+function decodeXML(value = "") {
+  return String(value)
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
+function getXMLTag(block, tag) {
+  const match = String(block).match(
+    new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, "i")
+  );
+
+  return match ? decodeXML(match[1].replace(/<!\\[CDATA\\[|\\]\\]>/g, "").trim()) : "";
+}
+
+function asksForCompanyNews(message) {
+  const text = String(message || "").toLowerCase();
+
+  return (
+    /\b(news|latest news|company update|headlines|announcement)\b/.test(text) ||
+    /समाचार|खबर|ताज़ा खबर/.test(text)
+  );
+}
+
+async function getGoogleNewsRSS(company) {
+  const query = encodeURIComponent(`${company} when:7d`);
+  const url =
+    `https://news.google.com/rss/search?q=${query}&hl=en-IN&gl=IN&ceid=IN:en`;
+
+  const xml = await fetchText(url);
+  const blocks = xml.match(/<item(?:\s[^>]*)?>[\s\S]*?<\/item>/gi) || [];
+
+  return blocks.slice(0, 5).map((block) => ({
+    title: getXMLTag(block, "title"),
+    link: getXMLTag(block, "link"),
+    published: getXMLTag(block, "pubDate"),
+  })).filter((item) => item.title);
+}
+
+function detectNewsCompany(message) {
+  const text = String(message || "").toLowerCase();
+
+  for (const name of Object.keys(COMPANY_ALIASES)) {
+    if (text.includes(name)) return name;
+  }
+
+  return null;
+}
+
+async function getCompanyNews(message) {
+  const company = detectNewsCompany(message);
+
+  if (!company) {
+    return null;
+  }
+
+  return getGoogleNewsRSS(company);
+}
+
+function buildNewsReply(company, news) {
+  if (!Array.isArray(news) || news.length === 0) {
+    return `Boss, ${company} ke liye abhi news available nahi hai.`;
+  }
+
+  return [
+    `Latest available news: ${company}`,
+    "",
+    ...news.map((item, index) =>
+      `${index + 1}. ${item.title}\n${item.published || "Publication date unavailable"}\n${item.link || ""}`
+    ),
+    "",
+    "News headlines may change; open the source to verify details.",
+  ].join("\n");
+}
+
+// ==========================================
+// END OF PART 2
+// PART 3 WILL CONTAIN GEMINI, IMAGE INPUT
+// AND THE FINAL API HANDLER.
+// ==========================================// ==========================================
 // SUNDAY AI — PART 3 OF 3
-// GEMINI + IMAGE ANALYSIS + FINAL API HANDLER
-// Paste this directly below Part 2.
+// GEMINI + IMAGE ANALYSIS + MEMORY + API HANDLER
 // ==========================================
 
 // ---------- IMAGE INPUT ----------
@@ -533,324 +691,242 @@ function formatIndexReport(report) {
 function getImageParts(body) {
   const parts = [];
 
-  const candidates = [
-    body.image,
-    body.photo,
-    body.imageBase64,
-    body.base64
-  ];
+  const image =
+    body.image ||
+    body.imageBase64 ||
+    body.imageData;
 
-  if (Array.isArray(body.images)) {
-    candidates.push(...body.images);
+  if (!image || typeof image !== "string") {
+    return parts;
   }
 
-  for (const candidate of candidates) {
-    if (!candidate) continue;
+  const match = image.match(
+    /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/
+  );
 
-    let base64 = "";
-    let mimeType = "image/jpeg";
-
-    if (typeof candidate === "string") {
-      const match = candidate.match(
-        /^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]+)$/
-      );
-
-      if (match) {
-        mimeType = match[1];
-        base64 = match[2];
-      } else {
-        base64 = candidate;
-      }
-    } else if (typeof candidate === "object") {
-      base64 =
-        candidate.data ||
-        candidate.base64 ||
-        candidate.imageBase64 ||
-        "";
-
-      mimeType =
-        candidate.mimeType ||
-        candidate.mimetype ||
-        candidate.type ||
-        mimeType;
-
-      if (typeof base64 === "string") {
-        const match = base64.match(
-          /^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]+)$/
-        );
-
-        if (match) {
-          mimeType = match[1];
-          base64 = match[2];
-        }
-      }
-    }
-
-    if (typeof base64 !== "string") continue;
-
-    base64 = base64.replace(/\s/g, "");
-
-    if (!base64 || !/^image\/(jpeg|png|webp|gif)$/i.test(mimeType)) {
-      continue;
-    }
-
-    // Prevent unexpectedly large image requests.
-    if (base64.length > 8 * 1024 * 1024) {
-      throw new Error("IMAGE_TOO_LARGE");
-    }
-
+  if (match) {
     parts.push({
       inlineData: {
-        mimeType,
-        data: base64
-      }
+        mimeType: match[1],
+        data: match[2],
+      },
     });
-
-    // One image is sufficient for the current frontend.
-    if (parts.length >= 1) break;
+  } else {
+    parts.push({
+      inlineData: {
+        mimeType: "image/jpeg",
+        data: image,
+      },
+    });
   }
 
   return parts;
 }
 
-// ---------- GEMINI CHAT WITH MEMORY ----------
+// ---------- GEMINI ASSISTANT ----------
 
 async function askGemini(prompt, imageParts = [], history = []) {
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
-    throw new Error("GEMINI_API_KEY_MISSING");
+    throw new Error("GEMINI_API_KEY is not configured.");
   }
 
   const genAI = new GoogleGenerativeAI(apiKey);
 
   const model = genAI.getGenerativeModel({
     model: MODEL_NAME,
-    systemInstruction: SYSTEM_INSTRUCTION
+    systemInstruction: SYSTEM_INSTRUCTION,
   });
 
-  const safeHistory = sanitizeHistory(history);
+  const validHistory = sanitizeHistory(history);
+
+  const chatHistory = validHistory.map((item) => ({
+    role: item.role,
+    parts: [{ text: item.content }],
+  }));
+
+  const chat = model.startChat({
+    history: chatHistory,
+    generationConfig: {
+      temperature: 0.7,
+      maxOutputTokens: 4096,
+    },
+  });
 
   const messageParts = [
-    {
-      text: prompt || "Boss, is image ko analyze karo."
-    },
-    ...imageParts
+    { text: String(prompt || "") },
+    ...imageParts,
   ];
 
-  const maxAttempts = 3;
+  let lastError;
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+  for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      if (safeHistory.length > 0) {
-        const chat = model.startChat({
-          history: safeHistory
-        });
+      const result = await chat.sendMessage(messageParts);
+      const response = result.response;
 
-        const result = await chat.sendMessage(messageParts);
-
-        return result.response.text();
-      }
-
-      const result = await model.generateContent(messageParts);
-
-      return result.response.text();
-
+      return response.text();
     } catch (error) {
-      const message = String(error?.message || error);
+      lastError = error;
 
-      console.error(
-        `Gemini attempt ${attempt}/${maxAttempts} failed:`,
-        message.slice(0, 400)
-      );
+      const message = String(error.message || "");
 
-      if (!isTemporaryError(error) || attempt === maxAttempts) {
-        throw error;
+      const retryable =
+        /503|429|500|502|504|overloaded|temporarily unavailable/i.test(
+          message
+        );
+
+      if (!retryable || attempt === 3) {
+        break;
       }
 
-      await delay(attempt * 1500);
+      await new Promise((resolve) =>
+        setTimeout(resolve, attempt * 1000)
+      );
     }
   }
 
-  throw new Error("GEMINI_RETRIES_EXHAUSTED");
+  throw lastError || new Error("Gemini request failed.");
 }
 
-// ---------- REQUEST CLASSIFICATION ----------
+// ---------- JSON RESPONSE HELPER ----------
 
-function isNewsRequest(message) {
-  return /\b(news|headlines|latest news|company news|market news|stock news)\b/i
-    .test(message);
+function sendJSON(res, status, data) {
+  res.status(status);
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
+  return res.json(data);
 }
 
-function isCryptoRequest(message) {
-  return /\b(bitcoin|btc|ethereum|eth|solana|dogecoin|doge|crypto price|cryptocurrency price|xrp|cardano|binance coin)\b/i
-    .test(message);
-}
-
-function isIndexRequest(message) {
-  return /\b(nifty|bank\s*nifty|banknifty|sensex)\b/i
-    .test(message);
-}
-
-function isStockAnalysisRequest(message) {
-  return /\b(stock analysis|analyze stock|analyse stock|share price|stock price|rsi|support and resistance|technical analysis)\b/i
-    .test(message);
-}
-
-// ---------- FRIENDLY ERROR MESSAGES ----------
-
-function getFriendlyError(error) {
-  const message = String(error?.message || error || "");
-
-  if (message.includes("GEMINI_API_KEY_MISSING")) {
-    return "Gemini API key missing hai. Project settings mein GEMINI_API_KEY check karo.";
-  }
-
-  if (message.includes("IMAGE_TOO_LARGE")) {
-    return "Photo bahut badi hai. Chhoti photo upload karke try karo.";
-  }
-
-  if (/429|quota|rate.?limit/i.test(message)) {
-    return "API ki request limit abhi poori ho gayi hai. Thodi der baad dobara try karo.";
-  }
-
-  if (/503|overloaded|high demand|temporarily unavailable/i.test(message)) {
-    return "AI service abhi busy hai. Kuch der baad dobara try karo.";
-  }
-
-  if (/STOCK_DATA_UNAVAILABLE|INDEX_DATA_UNAVAILABLE|NOT_ENOUGH_STOCK_HISTORY/i.test(message)) {
-    return "Is stock ka historical data abhi nahi mil raha. Symbol check karke dobara try karo.";
-  }
-
-  if (/CRYPTO_PRICE_UNAVAILABLE|HTTP_429/i.test(message)) {
-    return "Price service abhi data nahi de rahi. Thodi der baad try karo.";
-  }
-
-  if (/NEWS_QUERY_MISSING|NEWS_HTTP/i.test(message)) {
-    return "News fetch nahi ho paayi. Dobara try karo.";
-  }
-
-  console.error("Sunday AI request error:", message.slice(0, 500));
-
-  return "Abhi request complete nahi ho paayi. Message dobara bhejkar try karo.";
-}
-
-// ---------- MAIN API HANDLER ----------
+// ---------- FINAL API HANDLER ----------
 
 module.exports = async function handler(req, res) {
-  // CORS for browser-based frontend.
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
   if (req.method !== "POST") {
     return sendJSON(res, 405, {
-      reply: "Only POST requests are supported."
+      error: "Method not allowed. Use POST.",
     });
   }
 
   try {
-    const body = req.body || {};
+    const body =
+      typeof req.body === "string"
+        ? JSON.parse(req.body)
+        : req.body || {};
 
-    const cleanPrompt = getText(
-      body.message || body.prompt
-    );
+    const message = String(
+      body.message || body.prompt || ""
+    ).trim();
 
-    const imageParts = getImageParts(body);
-
-    if (!cleanPrompt && imageParts.length === 0) {
+    if (!message && !body.image && !body.imageBase64 && !body.imageData) {
       return sendJSON(res, 400, {
-        reply: "Message ya photo bhejo, phir main help karunga."
+        error: "Please provide a message or an image.",
       });
     }
 
-    // 1. Cryptocurrency price request.
-    if (isCryptoRequest(cleanPrompt)) {
-      try {
-        const coin = await getCryptoPrice(cleanPrompt);
+    // Conversation memory supplied by the frontend.
+    const history = sanitizeHistory(
+      body.history || body.messages || []
+    );
 
-        if (coin) {
-          return sendJSON(res, 200, {
-            reply: formatCryptoReply(coin)
-          });
-        }
+    // 1. Cryptocurrency prices
+    if (asksForLiveCryptoPrice(message)) {
+      try {
+        const prices = await getCryptoPrices();
+
+        return sendJSON(res, 200, {
+          reply: buildCryptoReply(prices),
+          memorySupported: true,
+        });
       } catch (error) {
-        console.error("Crypto lookup failed:", String(error.message || error));
+        console.error("Crypto error:", error.message);
+
+        return sendJSON(res, 502, {
+          error: "Crypto price service is temporarily unavailable.",
+        });
       }
     }
 
-    // 2. NIFTY / BANK NIFTY / SENSEX analysis.
-    if (isIndexRequest(cleanPrompt)) {
-      try {
-        const report = await analyzeIndex(cleanPrompt);
+    // 2. NIFTY and BANK NIFTY
+    const index = detectIndexRequest(message);
 
-        if (report) {
-          return sendJSON(res, 200, {
-            reply: formatIndexReport(report)
-          });
-        }
+    if (index) {
+      try {
+        const report = await getIndexData(index);
+
+        return sendJSON(res, 200, {
+          reply: buildIndexReply(report),
+          memorySupported: true,
+        });
       } catch (error) {
-        console.error("Index lookup failed:", String(error.message || error));
+        console.error("Index error:", error.message);
+
+        return sendJSON(res, 502, {
+          error: "Index data is temporarily unavailable.",
+        });
       }
     }
 
-    // 3. Stock technical analysis.
-    if (isStockAnalysisRequest(cleanPrompt)) {
-      const symbol = getStockSymbol(cleanPrompt);
+    // 3. Company news
+    if (asksForCompanyNews(message)) {
+      const company = detectNewsCompany(message);
 
-      if (symbol) {
+      if (company) {
         try {
-          const report = await analyzeStock(symbol);
+          const news = await getCompanyNews(message);
 
           return sendJSON(res, 200, {
-            reply: formatStockReport(report)
+            reply: buildNewsReply(company, news),
+            memorySupported: true,
           });
         } catch (error) {
-          console.error("Stock analysis failed:", String(error.message || error));
-        }
-      }
-    }
+          console.error("News error:", error.message);
 
-    // 4. News lookup.
-    if (isNewsRequest(cleanPrompt)) {
-      try {
-        const query = cleanPrompt
-          .replace(/\b(latest|news|headlines|show|tell|me|about|please|company|market)\b/gi, " ")
-          .replace(/\s+/g, " ")
-          .trim();
-
-        const news = await getGoogleNews(query || cleanPrompt);
-
-        if (news.length > 0) {
-          return sendJSON(res, 200, {
-            reply: formatNewsReply(query || cleanPrompt, news)
+          return sendJSON(res, 502, {
+            error: "Company news is temporarily unavailable.",
           });
         }
-      } catch (error) {
-        console.error("News lookup failed:", String(error.message || error));
       }
     }
 
-    // 5. General conversation or image analysis with Gemini.
+    // 4. Historical stock data
+    const stockSymbol = detectStockRequest(message);
+
+    if (stockSymbol) {
+      try {
+        const report = await getDailyStockData(stockSymbol);
+
+        return sendJSON(res, 200, {
+          reply: buildStockReply(report),
+          memorySupported: true,
+        });
+      } catch (error) {
+        console.error("Stock error:", error.message);
+
+        return sendJSON(res, 502, {
+          error: error.message || "Stock data is unavailable.",
+        });
+      }
+    }
+
+    // 5. General Gemini chat and image analysis
+    const imageParts = getImageParts(body);
+
     const reply = await askGemini(
-      cleanPrompt,
+      message || "Please describe the uploaded image.",
       imageParts,
-      Array.isArray(body.history) ? body.history : []
+      history
     );
 
     return sendJSON(res, 200, {
-      reply
+      reply,
+      memorySupported: true,
     });
-
   } catch (error) {
-    const friendlyMessage = getFriendlyError(error);
+    console.error("Sunday AI API error:", error);
 
     return sendJSON(res, 500, {
-      reply: friendlyMessage
+      error: "Sunday AI server error. Please try again.",
     });
   }
 };
