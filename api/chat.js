@@ -15,6 +15,8 @@ For news, use only returned article details; never invent headlines or URLs.
 If verified data is unavailable, say so clearly.
 `;
 
+/* ---------------- HTTP HELPERS ---------------- */
+
 function fetchJSON(url, headers = {}) {
   return new Promise((resolve, reject) => {
     const request = https.get(
@@ -30,11 +32,18 @@ function fetchJSON(url, headers = {}) {
         let body = "";
         response.setEncoding("utf8");
 
-        response.on("data", (chunk) => (body += chunk));
+        response.on("data", (chunk) => {
+          body += chunk;
+        });
 
         response.on("end", () => {
-          if (response.statusCode < 200 || response.statusCode >= 300) {
-            return reject(new Error(`API status: ${response.statusCode}`));
+          if (
+            response.statusCode < 200 ||
+            response.statusCode >= 300
+          ) {
+            return reject(
+              new Error(`API status: ${response.statusCode}`)
+            );
           }
 
           try {
@@ -54,6 +63,51 @@ function fetchJSON(url, headers = {}) {
     request.on("error", reject);
   });
 }
+
+function fetchText(url, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const request = https.get(
+      url,
+      {
+        headers: {
+          "User-Agent": "Mozilla/5.0 Sunday-AI/1.0",
+          Accept: "application/rss+xml, application/xml, text/xml",
+          ...headers,
+        },
+      },
+      (response) => {
+        let body = "";
+        response.setEncoding("utf8");
+
+        response.on("data", (chunk) => {
+          body += chunk;
+        });
+
+        response.on("end", () => {
+          if (
+            response.statusCode < 200 ||
+            response.statusCode >= 300
+          ) {
+            return reject(
+              new Error(`News RSS HTTP ${response.statusCode}`)
+            );
+          }
+
+          resolve(body);
+        });
+      }
+    );
+
+    request.setTimeout(
+      12000,
+      () => request.destroy(new Error("News RSS timeout"))
+    );
+
+    request.on("error", reject);
+  });
+}
+
+/* ---------------- FORMATTING HELPERS ---------------- */
 
 function formatINR(value) {
   if (
@@ -93,7 +147,10 @@ function dateInIndia(timestamp) {
 
 async function getCryptoPrices() {
   const apiKey = process.env.COINGECKO_API_KEY;
-  const headers = apiKey ? { "x-cg-demo-api-key": apiKey } : {};
+
+  const headers = apiKey
+    ? { "x-cg-demo-api-key": apiKey }
+    : {};
 
   return fetchJSON(
     "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=inr&include_24hr_change=true",
@@ -147,9 +204,13 @@ function buildCryptoReply(data) {
 /* ---------------- COMPANY NEWS ---------------- */
 
 function detectNewsSymbol(prompt) {
-  const explicit = prompt.match(/\b([A-Z0-9]{2,15}\.(?:BSE|NSE))\b/i);
+  const explicit = prompt.match(
+    /\b([A-Z0-9]{2,15}\.(?:BSE|NSE))\b/i
+  );
 
-  if (explicit) return explicit[1].toUpperCase();
+  if (explicit) {
+    return explicit[1].toUpperCase();
+  }
 
   const symbols = [
     [/\breliance\b/i, "RELIANCE.BSE"],
@@ -169,54 +230,204 @@ function detectNewsSymbol(prompt) {
 }
 
 function asksForCompanyNews(prompt) {
-  return /\b(news|headlines|latest updates|company updates|khabar|khabrein|taaza khabar)\b/i.test(
-    prompt
+  return (
+    /\b(news|headlines|updates|khabar|khabrein|khabre|taaza)\b/i.test(
+      prompt
+    ) ||
+    /latest\s+news/i.test(prompt) ||
+    /company\s+news/i.test(prompt) ||
+    /company\s+updates/i.test(prompt) ||
+    /ताज़ा खबर|ताजा खबर|कंपनी की खबर|कंपनी की न्यूज़/i.test(prompt)
   );
 }
 
-async function getCompanyNews(symbol) {
-  const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
+const COMPANY_NAMES = {
+  "RELIANCE.BSE": "Reliance Industries",
+  "TCS.BSE": "Tata Consultancy Services",
+  "INFY.BSE": "Infosys",
+  "HDFCBANK.BSE": "HDFC Bank",
+  "ICICIBANK.BSE": "ICICI Bank",
+  "TATAMOTORS.BSE": "Tata Motors",
+  "ITC.BSE": "ITC India",
+};
 
-  if (!apiKey) throw new Error("STOCK_API_KEY_MISSING");
-
-  const url =
-    "https://www.alphavantage.co/query?function=NEWS_SENTIMENT" +
-    `&tickers=${encodeURIComponent(symbol)}` +
-    `&limit=10&apikey=${encodeURIComponent(apiKey)}`;
-
-  const data = await fetchJSON(url);
-
-  if (data.Note || data.Information) {
-    throw new Error("STOCK_API_LIMIT");
-  }
-
-  if (data["Error Message"] || !Array.isArray(data.feed)) {
-    throw new Error("NEWS_UNAVAILABLE");
-  }
-
-  return data.feed.slice(0, 10).map((item) => ({
-    title: item.title || "Untitled",
-    source: item.source || "Unknown source",
-    url: item.url || "",
-    published: item.time_published || "Date unavailable",
-    sentiment: item.overall_sentiment_label || "Not available",
-  }));
+function decodeXML(value) {
+  return value
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&#(\d+);/g, (_, n) =>
+      String.fromCodePoint(Number(n))
+    )
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) =>
+      String.fromCodePoint(parseInt(n, 16))
+    )
+    .trim();
 }
 
-function buildNewsReply(symbol, articles) {
-  if (!articles.length) {
-    return `Boss, ${symbol} ke liye abhi koi news result nahi mila.`;
+function getXMLTag(item, tag) {
+  const match = item.match(
+    new RegExp(
+      `<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`,
+      "i"
+    )
+  );
+
+  return match ? decodeXML(match[1]) : "";
+}
+
+async function getGoogleNewsRSS(companyName) {
+  const query = `${companyName} when:7d`;
+
+  const rssUrl =
+    "https://news.google.com/rss/search?q=" +
+    encodeURIComponent(query) +
+    "&hl=en-IN&gl=IN&ceid=IN%3Aen";
+
+  const xml = await fetchText(rssUrl);
+
+  const items =
+    xml.match(/<item(?:\s[^>]*)?>[\s\S]*?<\/item>/gi) || [];
+
+  const articles = items
+    .slice(0, 10)
+    .map((item) => {
+      const title = getXMLTag(item, "title");
+      const url = getXMLTag(item, "link");
+      const published = getXMLTag(item, "pubDate");
+      const source = getXMLTag(item, "source");
+
+      return {
+        title,
+        url,
+        source: source || "Google News",
+        published: published || "Date unavailable",
+        sentiment: "Not provided",
+      };
+    })
+    .filter((article) => {
+      return (
+        article.title &&
+        /^https?:\/\//i.test(article.url)
+      );
+    });
+
+  return articles;
+}
+
+async function getCompanyNews(symbol) {
+  const companyName = COMPANY_NAMES[symbol] || symbol;
+  const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
+
+  // First attempt: Alpha Vantage NEWS_SENTIMENT.
+  if (apiKey) {
+    try {
+      const url =
+        "https://www.alphavantage.co/query?function=NEWS_SENTIMENT" +
+        `&tickers=${encodeURIComponent(symbol)}` +
+        `&limit=10&apikey=${encodeURIComponent(apiKey)}`;
+
+      const data = await fetchJSON(url);
+
+      if (Array.isArray(data.feed)) {
+        const articles = data.feed
+          .filter((item) => item.title && item.url)
+          .slice(0, 10)
+          .map((item) => ({
+            title: item.title,
+            source: item.source || "Unknown source",
+            url: item.url,
+            published:
+              item.time_published || "Date unavailable",
+            sentiment:
+              item.overall_sentiment_label || "Not available",
+          }));
+
+        if (articles.length > 0) {
+          return {
+            articles,
+            source: "Alpha Vantage",
+            companyName,
+          };
+        }
+      }
+
+      if (
+        data.Note ||
+        data.Information ||
+        data["Error Message"]
+      ) {
+        console.error(
+          "Alpha Vantage news response:",
+          String(
+            data.Note ||
+              data.Information ||
+              data["Error Message"]
+          ).slice(0, 500)
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Alpha Vantage news request failed:",
+        error.message
+      );
+    }
+  } else {
+    console.error(
+      "ALPHA_VANTAGE_API_KEY is not configured; trying Google News RSS."
+    );
   }
 
-  const lines = [`Boss, ${symbol} ki available news:`, ""];
+  // Fallback: Google News RSS.
+  // No Alpha Vantage news endpoint is needed for this attempt.
+  try {
+    const articles = await getGoogleNewsRSS(companyName);
+
+    return {
+      articles,
+      source: "Google News RSS",
+      companyName,
+    };
+  } catch (error) {
+    console.error("Google News RSS error:", error.message);
+
+    throw new Error("ALL_NEWS_SOURCES_FAILED");
+  }
+}
+
+function buildNewsReply(symbol, result) {
+  const articles = result.articles || [];
+  const companyName =
+    result.companyName || COMPANY_NAMES[symbol] || symbol;
+
+  if (!articles.length) {
+    return (
+      `Boss, ${companyName} ke liye abhi koi news result nahi mila.\n` +
+      `Source checked: ${result.source}\n` +
+      `Checked: ${formatTime()}`
+    );
+  }
+
+  const lines = [
+    `Boss, ${companyName} ki available news:`,
+    `Source: ${result.source}`,
+    "",
+  ];
 
   for (const article of articles) {
     lines.push(
       `Headline: ${article.title}`,
       `Source: ${article.source}`,
-      `Published: ${article.published}`,
-      `Sentiment: ${article.sentiment}`
+      `Published: ${article.published}`
     );
+
+    if (article.sentiment !== "Not provided") {
+      lines.push(`Sentiment: ${article.sentiment}`);
+    }
 
     if (article.url) {
       lines.push(`Article: ${article.url}`);
@@ -226,9 +437,8 @@ function buildNewsReply(symbol, articles) {
   }
 
   lines.push(
-    "Source: Alpha Vantage NEWS_SENTIMENT",
     `Fetched: ${formatTime()}`,
-    "Note: News sentiment apne aap mein buy/sell signal nahi hai. Indian BSE ticker coverage guaranteed nahi hai."
+    "Note: News sentiment apne aap mein buy/sell signal nahi hai. Headlines aur publication details original source par verify karna."
   );
 
   return lines.join("\n");
@@ -250,7 +460,9 @@ function detectStockRequest(prompt) {
 
   if (!mentionsStock || !asksForData) return null;
 
-  const explicit = prompt.match(/\b([A-Z0-9]{2,15}\.(?:BSE|NSE))\b/i);
+  const explicit = prompt.match(
+    /\b([A-Z0-9]{2,15}\.(?:BSE|NSE))\b/i
+  );
 
   if (explicit) return explicit[1].toUpperCase();
 
@@ -293,10 +505,14 @@ function calculateRSI(closes, period = 14) {
 
   for (let i = period; i < changes.length; i++) {
     avgGain =
-      (avgGain * (period - 1) + Math.max(changes[i], 0)) / period;
+      (avgGain * (period - 1) +
+        Math.max(changes[i], 0)) /
+      period;
 
     avgLoss =
-      (avgLoss * (period - 1) + Math.max(-changes[i], 0)) / period;
+      (avgLoss * (period - 1) +
+        Math.max(-changes[i], 0)) /
+      period;
   }
 
   if (avgGain === 0 && avgLoss === 0) return 50;
@@ -311,7 +527,9 @@ function calculateRSI(closes, period = 14) {
 async function getDailyStockData(symbol) {
   const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
 
-  if (!apiKey) throw new Error("STOCK_API_KEY_MISSING");
+  if (!apiKey) {
+    throw new Error("STOCK_API_KEY_MISSING");
+  }
 
   const url =
     "https://www.alphavantage.co/query?function=TIME_SERIES_DAILY" +
@@ -324,7 +542,10 @@ async function getDailyStockData(symbol) {
     throw new Error("STOCK_API_LIMIT");
   }
 
-  if (data["Error Message"] || !data["Time Series (Daily)"]) {
+  if (
+    data["Error Message"] ||
+    !data["Time Series (Daily)"]
+  ) {
     throw new Error("STOCK_DATA_UNAVAILABLE");
   }
 
@@ -351,7 +572,8 @@ async function getDailyStockData(symbol) {
   const changePercent = closes[0]
     ? Number(
         (
-          ((closes[closes.length - 1] - closes[0]) / closes[0]) *
+          ((closes[closes.length - 1] - closes[0]) /
+            closes[0]) *
           100
         ).toFixed(2)
       )
@@ -378,10 +600,10 @@ async function getDailyStockData(symbol) {
       trend,
       changePercent,
       support: Number(
-        Math.min(...history.map((r) => r.low)).toFixed(2)
+        Math.min(...history.map((row) => row.low)).toFixed(2)
       ),
       resistance: Number(
-        Math.max(...history.map((r) => r.high)).toFixed(2)
+        Math.max(...history.map((row) => row.high)).toFixed(2)
       ),
       rsi14,
     },
@@ -390,7 +612,7 @@ async function getDailyStockData(symbol) {
 }
 
 function buildStockReply(data) {
-  const a = data.analysis;
+  const analysis = data.analysis;
 
   const lines = [
     `Boss, ${data.symbol} ka daily historical market data:`,
@@ -401,17 +623,19 @@ function buildStockReply(data) {
     `Close: ₹${formatINR(data.close)}`,
     `Volume: ${Number(data.volume).toLocaleString("en-IN")}`,
     "",
-    `Technical analysis (${a.tradingDays} trading days):`,
-    `Trend: ${a.trend}`,
+    `Technical analysis (${analysis.tradingDays} trading days):`,
+    `Trend: ${analysis.trend}`,
     `Price change across available history: ${
-      a.changePercent >= 0 ? "+" : ""
-    }${a.changePercent}%`,
-    `Approximate support (lowest low): ₹${formatINR(a.support)}`,
+      analysis.changePercent >= 0 ? "+" : ""
+    }${analysis.changePercent}%`,
+    `Approximate support (lowest low): ₹${formatINR(
+      analysis.support
+    )}`,
     `Approximate resistance (highest high): ₹${formatINR(
-      a.resistance
+      analysis.resistance
     )}`,
     `RSI-14 (Wilder): ${
-      a.rsi14 === null ? "Not enough data" : a.rsi14
+      analysis.rsi14 === null ? "Not enough data" : analysis.rsi14
     }`,
     "",
     "Recent daily closing prices (newest first):",
@@ -426,7 +650,7 @@ function buildStockReply(data) {
     `Source: ${data.source}`,
     `Fetched: ${formatTime()}`,
     "Note: Ye daily historical data hai, live intraday price nahi.",
-    "Support/resistance simple historical estimates hain; guaranteed levels ya buy/sell signals nahi."
+    "Support/resistance historical estimates hain; guaranteed levels ya buy/sell signals nahi."
   );
 
   return lines.join("\n");
@@ -478,12 +702,12 @@ async function getIndexData(index) {
   }
 
   const rows = result.timestamp
-    .map((timestamp, i) => ({
+    .map((timestamp, indexPosition) => ({
       date: dateInIndia(timestamp),
-      open: quote.open?.[i],
-      high: quote.high?.[i],
-      low: quote.low?.[i],
-      close: quote.close?.[i],
+      open: quote.open?.[indexPosition],
+      high: quote.high?.[indexPosition],
+      low: quote.low?.[indexPosition],
+      close: quote.close?.[indexPosition],
     }))
     .filter((row) => Number.isFinite(row.close));
 
@@ -500,21 +724,23 @@ async function getIndexData(index) {
 }
 
 function buildIndexReply(data) {
-  const r = data.latest;
+  const row = data.latest;
 
   const lines = [
     `Boss, ${data.name} ka daily historical data:`,
-    `Date: ${r.date}`,
-    `Open: ${formatINR(r.open)}`,
-    `High: ${formatINR(r.high)}`,
-    `Low: ${formatINR(r.low)}`,
-    `Close: ${formatINR(r.close)}`,
+    `Date: ${row.date}`,
+    `Open: ${formatINR(row.open)}`,
+    `High: ${formatINR(row.high)}`,
+    `Low: ${formatINR(row.low)}`,
+    `Close: ${formatINR(row.close)}`,
     "",
     "Recent daily closing values:",
   ];
 
-  for (const row of data.history) {
-    lines.push(`${row.date}: ${formatINR(row.close)}`);
+  for (const historyRow of data.history) {
+    lines.push(
+      `${historyRow.date}: ${formatINR(historyRow.close)}`
+    );
   }
 
   lines.push(
@@ -522,7 +748,7 @@ function buildIndexReply(data) {
     `Source: ${data.source}`,
     `Fetched: ${formatTime()}`,
     "Ye daily historical data hai, guaranteed live intraday data nahi.",
-    "Yahoo Finance chart endpoint unofficial hai; data unavailable ya delayed ho sakta hai."
+    "Yahoo Finance endpoint unofficial hai; data unavailable ya delayed ho sakta hai."
   );
 
   return lines.join("\n");
@@ -531,9 +757,12 @@ function buildIndexReply(data) {
 /* ---------------- GEMINI ASSISTANT ---------------- */
 
 function getImageParts(body) {
-  const imageValue = body.image || body.imageBase64 || body.imageData;
+  const imageValue =
+    body.image || body.imageBase64 || body.imageData;
 
-  if (!imageValue || typeof imageValue !== "string") return [];
+  if (!imageValue || typeof imageValue !== "string") {
+    return [];
+  }
 
   let mimeType = body.mimeType || "image/jpeg";
   let base64 = imageValue;
@@ -547,7 +776,9 @@ function getImageParts(body) {
     base64 = match[2];
   }
 
-  if (!/^image\/[a-zA-Z0-9.+-]+$/.test(mimeType)) return [];
+  if (!/^image\/[a-zA-Z0-9.+-]+$/.test(mimeType)) {
+    return [];
+  }
 
   return [
     {
@@ -562,7 +793,9 @@ function getImageParts(body) {
 async function askGemini(prompt, imageParts = []) {
   const apiKey = process.env.GEMINI_API_KEY;
 
-  if (!apiKey) throw new Error("GEMINI_API_KEY_MISSING");
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY_MISSING");
+  }
 
   const genAI = new GoogleGenerativeAI(apiKey);
 
@@ -583,143 +816,4 @@ async function askGemini(prompt, imageParts = []) {
 
 /* ---------------- API HANDLER ---------------- */
 
-module.exports = async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ reply: "Method not allowed." });
-  }
-
-  try {
-    const body = req.body || {};
-    const cleanPrompt = String(body.message || body.prompt || "").trim();
-    const imageParts = getImageParts(body);
-
-    if (!cleanPrompt && imageParts.length === 0) {
-      return res
-        .status(400)
-        .json({ reply: "Boss, apna message ya image bhejo." });
-    }
-
-    // Company news is checked before normal stock data.
-    if (
-      asksForCompanyNews(cleanPrompt) &&
-      imageParts.length === 0
-    ) {
-      const symbol = detectNewsSymbol(cleanPrompt);
-
-      if (!symbol) {
-        return res.status(400).json({
-          reply:
-            "Boss, news ke liye Reliance, TCS, Infosys, HDFC Bank, ICICI Bank, Tata Motors, ITC ya supported ticker symbol ka naam likho.",
-        });
-      }
-
-      try {
-        const articles = await getCompanyNews(symbol);
-
-        return res
-          .status(200)
-          .json({ reply: buildNewsReply(symbol, articles) });
-      } catch (error) {
-        console.error("Company news error:", error.message);
-
-        let reply =
-          "Boss, is company ki news abhi fetch nahi ho pa rahi. Alpha Vantage ticker coverage ya API access unavailable ho sakta hai.";
-
-        if (error.message === "STOCK_API_KEY_MISSING") {
-          reply =
-            "Boss, ALPHA_VANTAGE_API_KEY environment variable set nahi hai.";
-        } else if (error.message === "STOCK_API_LIMIT") {
-          reply =
-            "Boss, Alpha Vantage ki API limit ya access restriction aa rahi hai. Baad mein try karo.";
-        }
-
-        return res.status(503).json({ reply });
-      }
-    }
-
-    const index = detectIndexRequest(cleanPrompt);
-
-    if (index && imageParts.length === 0) {
-      try {
-        const data = await getIndexData(index);
-
-        return res
-          .status(200)
-          .json({ reply: buildIndexReply(data) });
-      } catch (error) {
-        console.error("Index data error:", error.message);
-
-        return res.status(503).json({
-          reply: `Boss, abhi ${index.name} ka verified daily data fetch nahi ho pa raha. Provider unavailable ho sakta hai. Main bina verify kiye numbers nahi bataunga.`,
-        });
-      }
-    }
-
-    if (asksForLiveCryptoPrice(cleanPrompt)) {
-      try {
-        const data = await getCryptoPrices();
-
-        return res
-          .status(200)
-          .json({ reply: buildCryptoReply(data) });
-      } catch (error) {
-        console.error("Crypto data error:", error.message);
-
-        return res.status(503).json({
-          reply:
-            "Boss, abhi crypto prices fetch nahi ho pa rahe. Thodi der baad dobara try karo.",
-        });
-      }
-    }
-
-    const stockSymbol = detectStockRequest(cleanPrompt);
-
-    if (stockSymbol && imageParts.length === 0) {
-      try {
-        const data = await getDailyStockData(stockSymbol);
-
-        return res
-          .status(200)
-          .json({ reply: buildStockReply(data) });
-      } catch (error) {
-        console.error("Stock data error:", error.message);
-
-        let message =
-          "Boss, abhi is stock ka daily data available nahi ho pa raha.";
-
-        if (error.message === "STOCK_API_KEY_MISSING") {
-          message =
-            "Boss, ALPHA_VANTAGE_API_KEY environment variable set nahi hai.";
-        } else if (error.message === "STOCK_API_LIMIT") {
-          message =
-            "Boss, Alpha Vantage ki API limit ya access restriction aa rahi hai. Baad mein try karo.";
-        } else if (
-          error.message === "INSUFFICIENT_STOCK_HISTORY"
-        ) {
-          message =
-            "Boss, RSI-14 calculate karne ke liye paryapt historical data nahi mila.";
-        }
-
-        return res.status(503).json({ reply: message });
-      }
-    }
-
-    const reply = await askGemini(cleanPrompt, imageParts);
-
-    return res.status(200).json({ reply });
-  } catch (error) {
-    console.error("Sunday AI error:", error.message);
-
-    if (error.message === "GEMINI_API_KEY_MISSING") {
-      return res.status(500).json({
-        reply:
-          "Boss, GEMINI_API_KEY environment variable set nahi hai.",
-      });
-    }
-
-    return res.status(500).json({
-      reply:
-        "Boss, abhi ek technical error aa gaya hai. Thodi der baad dobara try karo.",
-    });
-  }
-};
+module.exports = async function handler(req, res)
