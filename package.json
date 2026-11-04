@@ -1,9 +1,10 @@
 {
-  "name": "sunday-ai",
-  "version": "1.0.0",
-  "description": "AI Trading Assistant",
-  "main": "api/chat.js",
-  "dependencies": {
-    "@google/generative-ai": "^0.21.0"
-  }
+"name": "jarvis-ai",
+"version": "1.0.0",
+"description": "JARVIS AI - Intelligent Personal Assistant",
+"main": "api/chat.js",
+"dependencies": {
+"@google/generative-ai": "^0.21.0",
+"@supabase/supabase-js": "^2.0.0"
+}
 }
