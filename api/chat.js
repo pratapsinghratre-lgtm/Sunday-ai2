@@ -1,6 +1,7 @@
 // ==========================================
-// SUNDAY AI — PART 1 OF 3
-// CONFIGURATION, HELPERS, CRYPTO & MEMORY
+// JARVIS AI — PART 1 OF 2
+// CONFIGURATION, HELPERS, CRYPTO, STOCKS,
+// INDICES AND COMPANY NEWS
 // ==========================================
 
 const { GoogleGenerativeAI } = require("@google/generative-ai");
@@ -9,31 +10,22 @@ const https = require("https");
 const MODEL_NAME = process.env.GEMINI_MODEL || "gemini-3.8-flash";
 
 const SYSTEM_INSTRUCTION = `
-You are Sunday AI, a helpful personal AI assistant.
+You are JARVIS AI, a helpful personal AI assistant.
 
 Rules:
 
-Reply naturally in Hindi or Hinglish when appropriate.
-
-Be friendly, clear, and respectful.
-
-Explain technical topics step by step.
-
-Use conversation history when it is provided.
-
-Do not claim to remember conversations that were not provided.
-
-Never invent live prices, news, or market data.
-
-Clearly distinguish verified data from estimates.
-
-Explain financial information educationally; never promise profits.
-
-For coding requests, preserve the user's existing features.
-
-If information is missing, ask a useful clarification.
-`;
-
+- Reply naturally in Hindi or Hinglish when appropriate.
+- Be friendly, clear, and respectful.
+- Explain technical topics step by step.
+- Use conversation history when provided.
+- Do not claim to remember conversations that were not provided.
+- Never invent live prices, news, or market data.
+- Clearly distinguish verified data from estimates.
+- Explain financial information educationally.
+- Never promise profits or give personalized investment instructions.
+- For coding requests, preserve existing features.
+- If information is missing, ask a useful clarification.
+  `;
 
 // ------------------------------------------
 // HTTPS JSON HELPER
@@ -45,7 +37,7 @@ const request = https.get(
 url,
 {
 headers: {
-"User-Agent": "SundayAI/1.0",
+"User-Agent": "JARVISAI/1.0",
 Accept: "application/json",
 ...headers,
 },
@@ -53,36 +45,31 @@ Accept: "application/json",
 (response) => {
 let data = "";
 
-response.setEncoding("utf8");  
+    response.setEncoding("utf8");
 
-    response.on("data", (chunk) => {  
-      data += chunk;  
-    });  
+    response.on("data", (chunk) => {
+      data += chunk;
+    });
 
-    response.on("end", () => {  
-      if (  
-        response.statusCode < 200 ||  
-        response.statusCode >= 300  
-      ) {  
-        return reject(  
-          new Error(  
-            `API request failed with status ${response.statusCode}`  
-          )  
-        );  
-      }  
+    response.on("end", () => {
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        return reject(
+          new Error(`API request failed: ${response.statusCode}`)
+        );
+      }
 
-      try {  
-        resolve(JSON.parse(data));  
-      } catch {  
-        reject(new Error("API returned invalid JSON"));  
-      }  
-    });  
-  }  
-);  
+      try {
+        resolve(JSON.parse(data));
+      } catch {
+        reject(new Error("API returned invalid JSON."));
+      }
+    });
+  }
+);
 
-request.setTimeout(timeout, () => {  
-  request.destroy(new Error("API request timed out"));  
-});  
+request.setTimeout(timeout, () => {
+  request.destroy(new Error("API request timed out."));
+});
 
 request.on("error", reject);
 
@@ -99,39 +86,34 @@ const request = https.get(
 url,
 {
 headers: {
-"User-Agent": "SundayAI/1.0",
+"User-Agent": "JARVISAI/1.0",
 ...headers,
 },
 },
 (response) => {
 let data = "";
 
-response.setEncoding("utf8");  
+    response.setEncoding("utf8");
 
-    response.on("data", (chunk) => {  
-      data += chunk;  
-    });  
+    response.on("data", (chunk) => {
+      data += chunk;
+    });
 
-    response.on("end", () => {  
-      if (  
-        response.statusCode < 200 ||  
-        response.statusCode >= 300  
-      ) {  
-        return reject(  
-          new Error(  
-            `Request failed with status ${response.statusCode}`  
-          )  
-        );  
-      }  
+    response.on("end", () => {
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        return reject(
+          new Error(`Request failed: ${response.statusCode}`)
+        );
+      }
 
-      resolve(data);  
-    });  
-  }  
-);  
+      resolve(data);
+    });
+  }
+);
 
-request.setTimeout(timeout, () => {  
-  request.destroy(new Error("Request timed out"));  
-});  
+request.setTimeout(timeout, () => {
+  request.destroy(new Error("Request timed out."));
+});
 
 request.on("error", reject);
 
@@ -170,21 +152,9 @@ timeStyle: "short",
 });
 }
 
-function dateInIndia() {
-return new Intl.DateTimeFormat("en-CA", {
-timeZone: "Asia/Kolkata",
-year: "numeric",
-month: "2-digit",
-day: "2-digit",
-}).format(new Date());
-}
-
 // ------------------------------------------
-// CONVERSATION MEMORY / HISTORY
+// CONVERSATION HISTORY
 // ------------------------------------------
-
-// This keeps the recent history supplied by the frontend.
-// It does not independently save permanent conversation data.
 
 function sanitizeHistory(history) {
 if (!Array.isArray(history)) {
@@ -192,15 +162,14 @@ return [];
 }
 
 return history
-.filter((item) => {
-return (
+.filter(
+(item) =>
 item &&
 typeof item === "object" &&
 ["user", "assistant", "model"].includes(item.role) &&
 typeof item.content === "string" &&
-item.content.trim().length > 0
-);
-})
+item.content.trim()
+)
 .slice(-20)
 .map((item) => ({
 role: item.role === "assistant" ? "model" : item.role,
@@ -235,44 +204,45 @@ const cryptoWords =
 /\b(bitcoin|btc|ethereum|eth|crypto|cryptocurrency)\b/.test(text);
 
 const priceWords =
-/\b(price|rate|value|live|current|latest|cost|कीमत|भाव|दाम)\b/.test(text);
+/\b(price|rate|value|live|current|latest|cost)\b/.test(text) ||
+/कीमत|भाव|दाम/.test(text);
 
 return cryptoWords && priceWords;
 }
 
 function buildCryptoReply(data) {
 if (!data || (!data.bitcoin && !data.ethereum)) {
-return "Boss, abhi crypto prices available nahi hain. Thodi der baad try karein.";
+return "Boss, abhi crypto prices available nahi hain. Baad mein try karein.";
 }
 
 function describe(name, item) {
 if (!item) {
-return `${name}: data unavailable`;
+return "${name}: data unavailable";
 }
 
-const usd = Number(item.usd);  
-const inr = Number(item.inr);  
-const change = Number(item.usd_24h_change);  
+const usd = Number(item.usd);
+const inr = Number(item.inr);
+const change = Number(item.usd_24h_change);
 
-const lines = [`${name}:`];  
+const lines = [`${name}:`];
 
-if (Number.isFinite(inr)) {  
-  lines.push(`INR price: ${formatINR(inr)}`);  
-}  
+if (Number.isFinite(inr)) {
+  lines.push(`INR price: ${formatINR(inr)}`);
+}
 
-if (Number.isFinite(usd)) {  
-  lines.push(  
-    `USD price: ${new Intl.NumberFormat("en-US", {  
-      style: "currency",  
-      currency: "USD",  
-      maximumFractionDigits: 2,  
-    }).format(usd)}`  
-  );  
-}  
+if (Number.isFinite(usd)) {
+  lines.push(
+    `USD price: ${new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 2,
+    }).format(usd)}`
+  );
+}
 
-if (Number.isFinite(change)) {  
-  lines.push(`24-hour change: ${change.toFixed(2)}%`);  
-}  
+if (Number.isFinite(change)) {
+  lines.push(`24-hour change: ${change.toFixed(2)}%`);
+}
 
 return lines.join("\n");
 
@@ -282,21 +252,11 @@ return [
 "Live crypto data response:",
 describe("Bitcoin (BTC)", data.bitcoin),
 describe("Ethereum (ETH)", data.ethereum),
-Data checked: ${formatTime(data.updatedAt)},
+"Data checked: ${formatTime(data.updatedAt)}",
 "",
-"Note: Prices can change quickly and may be delayed.",
+"Note: Prices may change quickly and data may be delayed.",
 ].join("\n");
 }
-
-// ==========================================
-// END OF PART 1
-// PART 2 WILL CONTAIN STOCKS, RSI, INDICES
-// AND COMPANY NEWS HELPERS.
-// ==========================================// ==========================================
-// SUNDAY AI — PART 2 OF 3
-// STOCKS, RSI, INDICES AND COMPANY NEWS
-// Paste directly below Part 1.
-// ==========================================
 
 // ------------------------------------------
 // STOCK SYMBOL ALIASES
@@ -332,13 +292,10 @@ const explicit = String(message || "").match(
 /\b([A-Z]{2,12}).(BSE|NSE)\b/i
 );
 
-return explicit ? explicit[1].toUpperCase() + "." +
-explicit[2].toUpperCase() : null;
+return explicit
+? "${explicit[1].toUpperCase()}.${explicit[2].toUpperCase()}"
+: null;
 }
-
-// ------------------------------------------
-// DETECT STOCK REQUEST
-// ------------------------------------------
 
 function detectStockRequest(message) {
 const text = String(message || "").toLowerCase();
@@ -347,11 +304,7 @@ const asksStock =
 /\b(stock|share|shares|price|chart|history|historical|rsi|support|resistance|close|market data)\b/.test(text) ||
 /शेयर|स्टॉक|भाव|कीमत|सपोर्ट|रेजिस्टेंस/.test(text);
 
-if (!asksStock) {
-return null;
-}
-
-return detectStockSymbol(message);
+return asksStock ? detectStockSymbol(message) : null;
 }
 
 // ------------------------------------------
@@ -359,15 +312,16 @@ return detectStockSymbol(message);
 // ------------------------------------------
 
 function calculateRSI(closes, period = 14) {
-if (!Array.isArray(closes) || closes.length <= period) {
+if (!Array.isArray(closes)) {
 return null;
 }
 
-const values = closes
-.map(Number)
-.filter(Number.isFinite);
+const values = closes.map(Number);
 
-if (values.length <= period) {
+if (
+values.length <= period ||
+!values.every(Number.isFinite)
+) {
 return null;
 }
 
@@ -377,7 +331,7 @@ let losses = 0;
 for (let i = 1; i <= period; i++) {
 const change = values[i] - values[i - 1];
 
-if (change > 0) gains += change;  
+if (change > 0) gains += change;
 if (change < 0) losses -= change;
 
 }
@@ -388,13 +342,11 @@ let averageLoss = losses / period;
 for (let i = period + 1; i < values.length; i++) {
 const change = values[i] - values[i - 1];
 
-averageGain =  
-  (averageGain * (period - 1) + Math.max(change, 0)) /  
-  period;  
+averageGain =
+  (averageGain * (period - 1) + Math.max(change, 0)) / period;
 
-averageLoss =  
-  (averageLoss * (period - 1) + Math.max(-change, 0)) /  
-  period;
+averageLoss =
+  (averageLoss * (period - 1) + Math.max(-change, 0)) / period;
 
 }
 
@@ -409,7 +361,6 @@ return 100 - 100 / (1 + relativeStrength);
 
 // ------------------------------------------
 // ALPHA VANTAGE STOCK HISTORY
-// Requires ALPHA_VANTAGE_API_KEY in environment.
 // ------------------------------------------
 
 async function getDailyStockData(symbol) {
@@ -421,15 +372,13 @@ throw new Error("ALPHA_VANTAGE_API_KEY is not configured.");
 
 const url =
 "https://www.alphavantage.co/query" +
-?function=TIME_SERIES_DAILY&symbol=${encodeURIComponent(symbol)} +
-&outputsize=compact&apikey=${encodeURIComponent(apiKey)};
+"?function=TIME_SERIES_DAILY&symbol=${encodeURIComponent(symbol)}" +
+"&outputsize=compact&apikey=${encodeURIComponent(apiKey)}";
 
 const data = await fetchJSON(url);
 
 if (data.Note || data.Information) {
-throw new Error(
-"Alpha Vantage request limit reached. Try again later."
-);
+throw new Error("Stock data request limit reached. Try later.");
 }
 
 if (data["Error Message"]) {
@@ -487,10 +436,6 @@ volume: latest.volume,
 };
 }
 
-// ------------------------------------------
-// BUILD STOCK REPLY
-// ------------------------------------------
-
 function buildStockReply(report) {
 const money = (value) =>
 Number.isFinite(Number(value))
@@ -499,26 +444,26 @@ Number.isFinite(Number(value))
 
 const percent = (value) =>
 Number.isFinite(Number(value))
-? ${Number(value).toFixed(2)}%
+? "${Number(value).toFixed(2)}%"
 : "Unavailable";
 
 return [
-Stock: ${report.symbol},
-Latest available date: ${report.date},
-Close: ₹${money(report.close)},
-Previous close: ₹${money(report.previousClose)},
-Daily change: ${percent(report.dailyChangePercent)},
-RSI (14): ${money(report.rsi14)},
-Support estimate: ₹${money(report.support)},
-Resistance estimate: ₹${money(report.resistance)},
-Volume: ${money(report.volume)},
+"Stock: ${report.symbol}",
+"Latest available date: ${report.date}",
+"Close: ₹${money(report.close)}",
+"Previous close: ₹${money(report.previousClose)}",
+"Daily change: ${percent(report.dailyChangePercent)}",
+"RSI (14): ${money(report.rsi14)}",
+"Support estimate: ₹${money(report.support)}",
+"Resistance estimate: ₹${money(report.resistance)}",
+"Volume: ${money(report.volume)}",
 "",
-"Note: Support and resistance are historical estimates, not guarantees.",
+"Note: These are historical estimates, not guarantees.",
 ].join("\n");
 }
 
 // ------------------------------------------
-// DETECT INDEX REQUEST
+// INDEX REQUEST
 // ------------------------------------------
 
 function detectIndexRequest(message) {
@@ -588,10 +533,6 @@ previous && previous.close !== 0
 };
 }
 
-// ------------------------------------------
-// BUILD INDEX REPLY
-// ------------------------------------------
-
 function buildIndexReply(report) {
 const money = (value) =>
 Number.isFinite(Number(value))
@@ -600,15 +541,15 @@ Number.isFinite(Number(value))
 
 const percent = (value) =>
 Number.isFinite(Number(value))
-? ${Number(value).toFixed(2)}%
+? "${Number(value).toFixed(2)}%"
 : "Unavailable";
 
 return [
-📊 Index: ${report.symbol},
-Latest available date: ${report.date},
-Close: ${money(report.close)},
-Previous close: ${money(report.previousClose)},
-Daily change: ${percent(report.dailyChangePercent)},
+"📊 Index: ${report.symbol}",
+"Latest available date: ${report.date}",
+"Close: ${money(report.close)}",
+"Previous close: ${money(report.previousClose)}",
+"Daily change: ${percent(report.dailyChangePercent)}",
 ].join("\n");
 }
 
@@ -627,10 +568,16 @@ return String(value)
 
 function getXMLTag(block, tag) {
 const match = String(block).match(
-new RegExp(<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>, "i")
+new RegExp("<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>", "i")
 );
 
-return match ? decodeXML(match[1].replace(/<!\\(CDATA\[|\\)\]>/g, "").trim()) : "";
+if (!match) return "";
+
+const value = match[1]
+.replace(/<!CDATA[([\s\S]*?)]>/g, "$1")
+.trim();
+
+return decodeXML(value);
 }
 
 function asksForCompanyNews(message) {
@@ -643,18 +590,23 @@ return (
 }
 
 async function getGoogleNewsRSS(company) {
-const query = encodeURIComponent(${company} when:7d);
+const query = encodeURIComponent("${company} when:7d");
+
 const url =
-https://news.google.com/rss/search?q=${query}&hl=en-IN&gl=IN&ceid=IN:en;
+"https://news.google.com/rss/search?q=${query}" +
+"&hl=en-IN&gl=IN&ceid=IN:en";
 
 const xml = await fetchText(url);
+
 const blocks = xml.match(/<item(?:\s[^>])?>[\s\S]?</item>/gi) || [];
 
-return blocks.slice(0, 5).map((block) => ({
+return blocks.slice(0, 5)
+.map((block) => ({
 title: getXMLTag(block, "title"),
 link: getXMLTag(block, "link"),
 published: getXMLTag(block, "pubDate"),
-})).filter((item) => item.title);
+}))
+.filter((item) => item.title);
 }
 
 function detectNewsCompany(message) {
@@ -670,73 +622,78 @@ return null;
 async function getCompanyNews(message) {
 const company = detectNewsCompany(message);
 
-if (!company) {
-return null;
-}
+if (!company) return null;
 
 return getGoogleNewsRSS(company);
 }
 
 function buildNewsReply(company, news) {
 if (!Array.isArray(news) || news.length === 0) {
-return Boss, ${company} ke liye abhi news available nahi hai.;
+return "Boss, ${company} ke liye abhi news available nahi hai.";
 }
 
 return [
-Latest available news: ${company},
+"Latest available news: ${company}",
 "",
-...news.map((item, index) =>
-${index + 1}. ${item.title}\n${item.published || "Publication date unavailable"}\n${item.link || ""}
+...news.map(
+(item, index) =>
+"${index + 1}. ${item.title}\n${item.published || "Publication date unavailable"}\n${item.link || ""}"
 ),
 "",
-"News headlines may change; open the source to verify details.",
+"News headlines may change. Open the source to verify details.",
 ].join("\n");
 }
 
 // ==========================================
-// END OF PART 2
-// PART 3 WILL CONTAIN GEMINI, IMAGE INPUT
-// AND THE FINAL API HANDLER.
+// END OF PART 1
+// PART 2 CONTINUES BELOW
 // ==========================================// ==========================================
-// SUNDAY AI — PART 3 OF 3
-// GEMINI + IMAGE ANALYSIS + MEMORY + API HANDLER
+// JARVIS AI — PART 2 OF 2
+// GEMINI, IMAGE INPUT AND FINAL API HANDLER
+// Paste directly below Part 1.
 // ==========================================
 
 // ---------- IMAGE INPUT ----------
 
 function getImageParts(body) {
-const parts = [];
-
 const image =
 body.image ||
 body.imageBase64 ||
 body.imageData;
 
 if (!image || typeof image !== "string") {
-return parts;
+return [];
 }
 
-const match = image.match(
-/^data:(image/[a-zA-Z0-9.+-]+);base64,(.+)$/
+const dataUrlMatch = image.match(
+/^data:(image/[a-zA-Z0-9.+-]+);base64,([\s\S]+)$/
 );
 
-if (match) {
-parts.push({
-inlineData: {
-mimeType: match[1],
-data: match[2],
-},
-});
-} else {
-parts.push({
-inlineData: {
-mimeType: "image/jpeg",
-data: image,
-},
-});
+const mimeType =
+dataUrlMatch?.[1] ||
+body.mimeType ||
+"image/jpeg";
+
+const base64 =
+dataUrlMatch?.[2] ||
+image.replace(/\s/g, "");
+
+if (!/^image/(jpeg|jpg|png|webp|heic|heif)$/i.test(mimeType)) {
+throw new Error("Unsupported image format.");
 }
 
-return parts;
+if (!base64 || base64.length > 15 * 1024 * 1024) {
+throw new Error("Image is empty or too large.");
+}
+
+return [
+{
+inlineData: {
+mimeType,
+data: base64,
+},
+},
+];
 }
 
 // ---------- GEMINI ASSISTANT ----------
@@ -755,9 +712,39 @@ model: MODEL_NAME,
 systemInstruction: SYSTEM_INSTRUCTION,
 });
 
-const validHistory = sanitizeHistory(history);
+let validHistory = sanitizeHistory(history);
 
-const chatHistory = validHistory.map((item) => ({
+// Gemini chat history must begin with a user message.
+while (validHistory.length && validHistory[0].role !== "user") {
+validHistory.shift();
+}
+
+// History must alternate between user and model.
+const alternatingHistory = [];
+
+for (const item of validHistory) {
+const previous = alternatingHistory[alternatingHistory.length - 1];
+
+if (previous && previous.role === item.role) {
+  alternatingHistory[alternatingHistory.length - 1] = {
+    role: item.role,
+    content: item.content,
+  };
+} else {
+  alternatingHistory.push(item);
+}
+
+}
+
+// Do not include a trailing user message if it is the current prompt.
+if (
+alternatingHistory.length &&
+alternatingHistory[alternatingHistory.length - 1].role === "user"
+) {
+alternatingHistory.pop();
+}
+
+const chatHistory = alternatingHistory.map((item) => ({
 role: item.role,
 parts: [{ text: item.content }],
 }));
@@ -771,7 +758,7 @@ maxOutputTokens: 4096,
 });
 
 const messageParts = [
-{ text: String(prompt || "") },
+{ text: String(prompt || "Please describe the uploaded image.") },
 ...imageParts,
 ];
 
@@ -782,24 +769,30 @@ try {
 const result = await chat.sendMessage(messageParts);
 const response = result.response;
 
-return response.text();  
-} catch (error) {  
-  lastError = error;  
+  const text = response.text();
 
-  const message = String(error.message || "");  
+  if (!text) {
+    throw new Error("Gemini returned an empty response.");
+  }
 
-  const retryable =  
-    /503|429|500|502|504|overloaded|temporarily unavailable/i.test(  
-      message  
-    );  
+  return text;
+} catch (error) {
+  lastError = error;
 
-  if (!retryable || attempt === 3) {  
-    break;  
-  }  
+  const message = String(error.message || "");
 
-  await new Promise((resolve) =>  
-    setTimeout(resolve, attempt * 1000)  
-  );  
+  const retryable =
+    /503|429|500|502|504|overloaded|temporarily unavailable/i.test(
+      message
+    );
+
+  if (!retryable || attempt === 3) {
+    break;
+  }
+
+  await new Promise((resolve) =>
+    setTimeout(resolve, attempt * 1200)
+  );
 }
 
 }
@@ -809,127 +802,186 @@ throw lastError || new Error("Gemini request failed.");
 
 // ---------- JSON RESPONSE HELPER ----------
 
-function sendJSON(res, status, data) {try {
-const body =
-typeof req.body === "string"
-? JSON.parse(req.body)
-: req.body || {};
+function sendJSON(res, status, data) {
+res.statusCode = status;
+res.setHeader("Content-Type", "application/json; charset=utf-8");
+res.setHeader("Cache-Control", "no-store");
 
-const message = String(  
-  body.message || body.prompt || ""  
-).trim();  
+return res.end(JSON.stringify(data));
+}
 
-if (!message && !body.image && !body.imageBase64 && !body.imageData) {  
-  return sendJSON(res, 400, {  
-    error: "Please provide a message or an image.",  
-  });  
-}  
+// ---------- REQUEST BODY HELPER ----------
 
-// Conversation memory supplied by the frontend.  
-const history = sanitizeHistory(  
-  body.history || body.messages || []  
-);  
+function getRequestBody(req) {
+if (req.body && typeof req.body === "object") {
+return req.body;
+}
 
-// 1. Cryptocurrency prices  
-if (asksForLiveCryptoPrice(message)) {  
-  try {  
-    const prices = await getCryptoPrices();  
+if (typeof req.body === "string") {
+try {
+return JSON.parse(req.body);
+} catch {
+throw new Error("Request body contains invalid JSON.");
+}
+}
 
-    return sendJSON(res, 200, {  
-      reply: buildCryptoReply(prices),  
-      memorySupported: true,  
-    });  
-  } catch (error) {  
-    console.error("Crypto error:", error.message);  
+return {};
+}
 
-    return sendJSON(res, 502, {  
-      error: "Crypto price service is temporarily unavailable.",  
-    });  
-  }  
-}  
+// ---------- FINAL API HANDLER ----------
 
-// 2. NIFTY and BANK NIFTY  
-const index = detectIndexRequest(message);  
+module.exports = async function handler(req, res) {
+if (req.method !== "POST") {
+res.setHeader("Allow", "POST");
 
-if (index) {  
-  try {  
-    const report = await getIndexData(index);  
+return sendJSON(res, 405, {
+  error: "Method not allowed. Use POST.",
+});
 
-    return sendJSON(res, 200, {  
-      reply: buildIndexReply(report),  
-      memorySupported: true,  
-    });  
-  } catch (error) {  
-    console.error("Index error:", error.message);  
+}
 
-    return sendJSON(res, 502, {  
-      error: "Index data is temporarily unavailable.",  
-    });  
-  }  
-}  
+try {
+const body = getRequestBody(req);
 
-// 3. Company news  
-if (asksForCompanyNews(message)) {  
-  const company = detectNewsCompany(message);  
+const message = String(
+  body.message || body.prompt || ""
+).trim();
 
-  if (company) {  
-    try {  
-      const news = await getCompanyNews(message);  
+const hasImage = Boolean(
+  body.image || body.imageBase64 || body.imageData
+);
 
-      return sendJSON(res, 200, {  
-        reply: buildNewsReply(company, news),  
-        memorySupported: true,  
-      });  
-    } catch (error) {  
-      console.error("News error:", error.message);  
+if (!message && !hasImage) {
+  return sendJSON(res, 400, {
+    error: "Please provide a message or an image.",
+  });
+}
 
-      return sendJSON(res, 502, {  
-        error: "Company news is temporarily unavailable.",  
-      });  
-    }  
-  }  
-}  
+const history = sanitizeHistory(
+  body.history || body.messages || []
+);
 
-// 4. Historical stock data  
-const stockSymbol = detectStockRequest(message);  
+// 1. Cryptocurrency prices
 
-if (stockSymbol) {  
-  try {  
-    const report = await getDailyStockData(stockSymbol);  
+if (asksForLiveCryptoPrice(message)) {
+  try {
+    const prices = await getCryptoPrices();
 
-    return sendJSON(res, 200, {  
-      reply: buildStockReply(report),  
-      memorySupported: true,  
-    });  
-  } catch (error) {  
-    console.error("Stock error:", error.message);  
+    return sendJSON(res, 200, {
+      reply: buildCryptoReply(prices),
+      memorySupported: false,
+    });
+  } catch (error) {
+    console.error("Crypto error:", error.message);
 
-    return sendJSON(res, 502, {  
-      error: error.message || "Stock data is unavailable.",  
-    });  
-  }  
-}  
+    return sendJSON(res, 502, {
+      error: "Crypto price service is temporarily unavailable.",
+    });
+  }
+}
 
-// 5. General Gemini chat and image analysis  
-const imageParts = getImageParts(body);  
+// 2. NIFTY and BANK NIFTY
 
-const reply = await askGemini(  
-  message || "Please describe the uploaded image.",  
-  imageParts,  
-  history  
-);  
+const index = detectIndexRequest(message);
 
-return sendJSON(res, 200, {  
-  reply,  
-  memorySupported: true,  
+if (index) {
+  try {
+    const report = await getIndexData(index);
+
+    return sendJSON(res, 200, {
+      reply: buildIndexReply(report),
+      memorySupported: false,
+    });
+  } catch (error) {
+    console.error("Index error:", error.message);
+
+    return sendJSON(res, 502, {
+      error: "Index data is temporarily unavailable.",
+    });
+  }
+}
+
+// 3. Company news
+
+if (asksForCompanyNews(message)) {
+  const company = detectNewsCompany(message);
+
+  if (company) {
+    try {
+      const news = await getCompanyNews(message);
+
+      return sendJSON(res, 200, {
+        reply: buildNewsReply(company, news),
+        memorySupported: false,
+      });
+    } catch (error) {
+      console.error("News error:", error.message);
+
+      return sendJSON(res, 502, {
+        error: "Company news is temporarily unavailable.",
+      });
+    }
+  }
+}
+
+// 4. Historical stock data
+
+const stockSymbol = detectStockRequest(message);
+
+if (stockSymbol) {
+  try {
+    const report = await getDailyStockData(stockSymbol);
+
+    return sendJSON(res, 200, {
+      reply: buildStockReply(report),
+      memorySupported: false,
+    });
+  } catch (error) {
+    console.error("Stock error:", error.message);
+
+    return sendJSON(res, 502, {
+      error: error.message || "Stock data is unavailable.",
+    });
+  }
+}
+
+// 5. General Gemini chat and image analysis
+
+const imageParts = getImageParts(body);
+
+const reply = await askGemini(
+  message || "Please describe the uploaded image.",
+  imageParts,
+  history
+);
+
+return sendJSON(res, 200, {
+  reply,
+  memorySupported: false,
 });
 
 } catch (error) {
-console.error("Sunday AI API error:", error);
+console.error("JARVIS AI API error:", error);
 
-return sendJSON(res, 500, {  
-  error: "Sunday AI server error. Please try again.",  
+const message = String(error.message || "");
+
+const status =
+  /GEMINI_API_KEY is not configured/i.test(message)
+    ? 500
+    : /image format|image is empty|too large|invalid JSON/i.test(message)
+      ? 400
+      : 500;
+
+return sendJSON(res, status, {
+  error:
+    status === 400
+      ? message
+      : "JARVIS AI server error. Please check the Vercel Runtime Logs.",
 });
 
 }
 };
+
+// ==========================================
+// END OF PART 2
+// ==========================================
