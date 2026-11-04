@@ -247,7 +247,7 @@ return "Boss, abhi crypto prices available nahi hain. Thodi der baad try karein.
 
 function describe(name, item) {
 if (!item) {
-return ${name}: data unavailable;
+return `${name}: data unavailable`;
 }
 
 const usd = Number(item.usd);  
