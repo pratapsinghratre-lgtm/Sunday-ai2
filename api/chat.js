@@ -574,7 +574,7 @@ new RegExp("<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>", "i")
 if (!match) return "";
 
 const value = match[1]
-.replace(/<!CDATA[([\s\S]*?)]>/g, "$1")
+.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
 .trim();
 
 return decodeXML(value);
