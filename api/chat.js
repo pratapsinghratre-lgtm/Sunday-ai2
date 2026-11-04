@@ -598,7 +598,7 @@ const url =
 
 const xml = await fetchText(url);
 
-const blocks = xml.match(/<item(?:\s[^>])?>[\s\S]?</item>/gi) || [];
+const blocks = xml.match(/<item(?:\s[^>]*)?>[\s\S]*?<\/item>/gi) || [];
 
 return blocks.slice(0, 5)
 .map((block) => ({
