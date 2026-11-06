@@ -271,9 +271,8 @@ function getImageParts(body) {
   ];
 }
 
-
 // ==========================================
-// GEMINI AI
+// GEMINI AI - IMPROVED RETRY SYSTEM
 // ==========================================
 
 async function askGemini(prompt, imageParts = [], history = []) {
@@ -292,7 +291,6 @@ async function askGemini(prompt, imageParts = [], history = []) {
 
   let validHistory = sanitizeHistory(history);
 
-  // Current prompt must not be repeated in history.
   if (
     validHistory.length &&
     validHistory[validHistory.length - 1].role === "user"
@@ -324,7 +322,7 @@ async function askGemini(prompt, imageParts = [], history = []) {
 
   let lastError;
 
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  for (let attempt = 1; attempt <= 4; attempt++) {
     try {
       const result = await chat.sendMessage(messageParts);
       const answer = result.response.text();
@@ -334,29 +332,36 @@ async function askGemini(prompt, imageParts = [], history = []) {
       }
 
       return answer;
+
     } catch (error) {
       lastError = error;
 
       const message = String(error.message || "");
-
       const retryable =
-        /503|429|500|502|504|overloaded|temporarily unavailable/i.test(
-          message
-        );
+        /503|429|500|502|504|overloaded|temporarily unavailable/i.test(message);
 
-      if (!retryable || attempt === 3) {
+      console.error(
+        `Gemini attempt ${attempt} failed:`,
+        message
+      );
+
+      if (!retryable || attempt === 4) {
         break;
       }
 
+      const delay = Math.min(
+        1500 * Math.pow(2, attempt - 1),
+        10000
+      );
+
       await new Promise((resolve) =>
-        setTimeout(resolve, attempt * 1200)
+        setTimeout(resolve, delay)
       );
     }
   }
 
   throw lastError || new Error("Gemini request failed.");
 }
-
 
 // ==========================================
 // CRYPTO PRICE
