@@ -6,7 +6,7 @@ const MAX_BODY_SIZE = 8 * 1024 * 1024;
 
 const server = http.createServer(async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   if (req.method === "OPTIONS") {
@@ -14,7 +14,22 @@ const server = http.createServer(async (req, res) => {
     return res.end();
   }
 
-  if (req.url !== "/api/chat") {
+  const pathname = new URL(
+    req.url,
+    `http://${req.headers.host || "localhost"}`
+  ).pathname.replace(/\/+$/, "") || "/";
+
+  // Server health check
+  if (pathname === "/" && req.method === "GET") {
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "application/json");
+    return res.end(JSON.stringify({
+      status: "online",
+      message: "JARVIS AI server is running."
+    }));
+  }
+
+  if (pathname !== "/api/chat") {
     res.statusCode = 404;
     res.setHeader("Content-Type", "application/json");
     return res.end(JSON.stringify({
@@ -27,7 +42,7 @@ const server = http.createServer(async (req, res) => {
     res.setHeader("Allow", "POST, OPTIONS");
     res.setHeader("Content-Type", "application/json");
     return res.end(JSON.stringify({
-      error: "Method not allowed"
+      error: "Use POST for the chat API."
     }));
   }
 
