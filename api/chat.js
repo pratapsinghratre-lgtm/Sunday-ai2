@@ -971,9 +971,9 @@ module.exports = async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error("JARVIS API error:", error.message);
+    console.error("JARVIS API error:", error);
 
-    const message = String(error.message || "");
+    const message = String(error?.message || "Unknown server error");
 
     const isBadRequest =
       /image format|image is empty|too large|invalid JSON|invalid image/i.test(
@@ -983,7 +983,7 @@ module.exports = async function handler(req, res) {
     return sendJSON(res, isBadRequest ? 400 : 500, {
       error: isBadRequest
         ? message
-        : "JARVIS AI server error. Check Vercel Runtime Logs.",
+        : "JARVIS AI server error. Please check Render Logs.",
     });
   }
 };
