@@ -272,7 +272,7 @@ function getImageParts(body) {
 }
 
 // ==========================================
-// GEMINI AI - IMPROVED RETRY SYSTEM
+// GEMINI AI - FAST MODEL FALLBACK
 // ==========================================
 
 async function askGemini(prompt, imageParts = [], history = []) {
@@ -284,10 +284,13 @@ async function askGemini(prompt, imageParts = [], history = []) {
 
   const genAI = new GoogleGenerativeAI(apiKey);
 
-  const model = genAI.getGenerativeModel({
-    model: MODEL_NAME,
-    systemInstruction: SYSTEM_INSTRUCTION,
-  });
+  const modelsToTry = [
+    MODEL_NAME,
+    "gemini-3.6-flash",
+    "gemini-3.5-flash"
+  ].filter((model, index, list) =>
+    model && list.indexOf(model) === index
+  );
 
   let validHistory = sanitizeHistory(history);
 
@@ -303,14 +306,6 @@ async function askGemini(prompt, imageParts = [], history = []) {
     parts: [{ text: item.content }],
   }));
 
-  const chat = model.startChat({
-    history: chatHistory,
-    generationConfig: {
-      temperature: 0.7,
-      maxOutputTokens: 4096,
-    },
-  });
-
   const messageParts = [
     {
       text: String(
@@ -322,45 +317,54 @@ async function askGemini(prompt, imageParts = [], history = []) {
 
   let lastError;
 
-  for (let attempt = 1; attempt <= 4; attempt++) {
+  for (const modelName of modelsToTry) {
     try {
+      console.log("Trying Gemini model:", modelName);
+
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        systemInstruction: SYSTEM_INSTRUCTION,
+      });
+
+      const chat = model.startChat({
+        history: chatHistory,
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 2048,
+        },
+      });
+
       const result = await chat.sendMessage(messageParts);
       const answer = result.response.text();
 
-      if (!answer) {
+      if (!answer || !answer.trim()) {
         throw new Error("Gemini returned an empty response.");
       }
 
+      console.log("Gemini response received from:", modelName);
       return answer;
 
     } catch (error) {
       lastError = error;
 
+      console.error(
+        "Gemini model failed:",
+        modelName,
+        error.message
+      );
+
       const message = String(error.message || "");
+
       const retryable =
         /503|429|500|502|504|overloaded|temporarily unavailable/i.test(message);
 
-      console.error(
-        `Gemini attempt ${attempt} failed:`,
-        message
-      );
-
-      if (!retryable || attempt === 4) {
-        break;
+      if (!retryable) {
+        throw error;
       }
-
-      const delay = Math.min(
-        1500 * Math.pow(2, attempt - 1),
-        10000
-      );
-
-      await new Promise((resolve) =>
-        setTimeout(resolve, delay)
-      );
     }
   }
 
-  throw lastError || new Error("Gemini request failed.");
+  throw lastError || new Error("All Gemini models are unavailable.");
 }
 
 // ==========================================
