@@ -8,7 +8,7 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const https = require("https");
 
 const MODEL_NAME =
-  process.env.GEMINI_MODEL || "gemini-3.8-flash";
+  process.env.GEMINI_MODEL || "gemini-3.7-flash";
 
 const SYSTEM_INSTRUCTION = `
 You are JARVIS AI, a helpful personal assistant.
