@@ -1,12 +1,12 @@
 // JARVIS AI - STABILIZED API
-// Gemini + Image + Crypto + Stocks + RSI
+// Gemini 3.8 Interactions + Image + Crypto + Stocks + RSI
 // Nifty / Bank Nifty + Company News + Self-Upgrade Planning
 
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenAI } = require("@google/genai");
 const https = require("https");
 
-const MODEL_NAME = process.env.GEMINI_MODEL || "gemini-3.7-flash";
-const REQUEST_TIMEOUT_MS = 12000;
+const MODEL_NAME = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+const REQUEST_TIMEOUT_MS = 20000;
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 
 const SYSTEM_INSTRUCTION = `
@@ -55,10 +55,12 @@ function fetchText(url, timeout = REQUEST_TIMEOUT_MS) {
       },
       (response) => {
         let data = "";
+
         response.setEncoding("utf8");
 
         response.on("data", (chunk) => {
           data += chunk;
+
           if (Buffer.byteLength(data, "utf8") > MAX_RESPONSE_BYTES) {
             request.destroy(new Error("External response too large."));
           }
@@ -66,9 +68,12 @@ function fetchText(url, timeout = REQUEST_TIMEOUT_MS) {
 
         response.on("end", () => {
           if (response.statusCode < 200 || response.statusCode >= 300) {
-            reject(new Error(`External service error: ${response.statusCode}`));
+            reject(
+              new Error(`External service error: ${response.statusCode}`)
+            );
             return;
           }
+
           resolve(data);
         });
       }
@@ -77,12 +82,14 @@ function fetchText(url, timeout = REQUEST_TIMEOUT_MS) {
     request.setTimeout(timeout, () => {
       request.destroy(new Error("External request timed out."));
     });
+
     request.on("error", reject);
   });
 }
 
 async function fetchJSON(url) {
   const text = await fetchText(url);
+
   try {
     return JSON.parse(text);
   } catch {
@@ -150,8 +157,10 @@ function sanitizeHistory(history) {
     }));
 
   const result = [];
+
   for (const item of items) {
     const previous = result[result.length - 1];
+
     if (previous && previous.role === item.role) {
       previous.content += "\n" + item.content;
     } else {
@@ -159,89 +168,126 @@ function sanitizeHistory(history) {
     }
   }
 
-  while (result.length && result[0].role !== "user") result.shift();
+  while (result.length && result[0].role !== "user") {
+    result.shift();
+  }
+
   return result;
 }
 
 function getImageParts(body) {
   const image = body.image || body.imageBase64 || body.imageData;
+
   if (!image) return [];
-  if (typeof image !== "string") throw new Error("Invalid image data.");
+  if (typeof image !== "string") {
+    throw new Error("Invalid image data.");
+  }
 
   const match = image.match(
     /^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]+)$/
   );
+
   const mimeType = match?.[1] || body.mimeType || "image/jpeg";
   const base64 = (match?.[2] || image).replace(/\s/g, "");
 
   if (!/^image\/(jpeg|jpg|png|webp)$/i.test(mimeType)) {
     throw new Error("Unsupported image format. Use JPG, PNG or WEBP.");
   }
+
   if (!base64 || base64.length > 4 * 1024 * 1024) {
     throw new Error("Image is empty or too large. Try a smaller image.");
   }
+
   if (!/^[A-Za-z0-9+/]+={0,2}$/.test(base64)) {
     throw new Error("Invalid image data.");
   }
 
-  return [{ inlineData: { mimeType, data: base64 } }];
+  return [
+    {
+      type: "image",
+      data: base64,
+      mime_type: mimeType,
+    },
+  ];
 }
 
+// Gemini Interactions API
 async function askGemini(prompt, imageParts = [], history = []) {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured.");
+
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY is not configured.");
+  }
 
   if (!/^[a-zA-Z0-9._-]+$/.test(MODEL_NAME)) {
     throw new Error("GEMINI_MODEL is invalid. Check server environment.");
   }
 
-  const genAI = new GoogleGenerativeAI(apiKey);
   const validHistory = sanitizeHistory(history);
 
-  // Current message is sent separately, so remove a duplicate final user turn.
-  if (validHistory.length && validHistory[validHistory.length - 1].role === "user") {
-    validHistory.pop();
-  }
+  const historyText = validHistory
+    .map((item) => {
+      const role = item.role === "model" ? "Assistant" : "User";
+      return `${role}: ${item.content}`;
+    })
+    .join("\n\n");
 
-  const chatHistory = validHistory.map((item) => ({
-    role: item.role,
-    parts: [{ text: item.content }],
-  }));
+  const currentPrompt = String(
+    prompt || "Please describe the uploaded image."
+  );
 
-  const model = genAI.getGenerativeModel({
-    model: MODEL_NAME,
-    systemInstruction: SYSTEM_INSTRUCTION,
-  });
+  const fullPrompt = [
+    historyText ? "Conversation history:\n" + historyText : "",
+    "Current user message:\n" + currentPrompt,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 
-  const chat = model.startChat({
-    history: chatHistory,
-    generationConfig: {
-      temperature: 0.6,
-      maxOutputTokens: 2048,
-    },
-  });
-
-  const parts = [
-    { text: String(prompt || "Please describe the uploaded image.") },
+  const input = [
+    { type: "text", text: fullPrompt },
     ...imageParts,
   ];
 
-  const result = await chat.sendMessage(parts);
-  const answer = result.response.text();
+  const client = new GoogleGenAI({ apiKey });
 
-  if (!answer || !answer.trim()) {
+  const interaction = await client.interactions.create({
+    model: MODEL_NAME,
+    input,
+    system_instruction: SYSTEM_INSTRUCTION,
+    generation_config: {
+      temperature: 0.6,
+      max_output_tokens: 2048,
+    },
+  });
+
+  const steps = interaction.steps || [];
+
+  const answer = steps
+    .filter((step) => step.type === "model_output")
+    .flatMap((step) => step.content || [])
+    .filter((item) => item.type === "text")
+    .map((item) => item.text || "")
+    .join("\n")
+    .trim();
+
+  if (!answer) {
     throw new Error("Gemini returned an empty response.");
   }
-  return answer.trim();
+
+  return answer;
 }
 
 // Crypto prices
 function asksForCrypto(message) {
   const text = String(message || "").toLowerCase();
-  const hasCrypto = /\b(bitcoin|btc|ethereum|eth|crypto)\b/.test(text);
+
+  const hasCrypto =
+    /\b(bitcoin|btc|ethereum|eth|crypto)\b/.test(text);
+
   const hasPrice =
     /\b(price|rate|value|live|current|latest|cost)\b/.test(text) ||
     /कीमत|भाव|दाम/.test(text);
+
   return hasCrypto && hasPrice;
 }
 
@@ -249,6 +295,7 @@ async function getCryptoPrices() {
   const url =
     "https://api.coingecko.com/api/v3/simple/price" +
     "?ids=bitcoin,ethereum&vs_currencies=usd,inr&include_24hr_change=true";
+
   return fetchJSON(url);
 }
 
@@ -259,17 +306,25 @@ function buildCryptoReply(data) {
 
   function describe(name, item) {
     if (!item) return `${name}: unavailable`;
+
     const lines = [`${name}:`];
 
     if (Number.isFinite(Number(item.inr))) {
       lines.push(`INR: ${formatINR(item.inr)}`);
     }
+
     if (Number.isFinite(Number(item.usd))) {
-      lines.push(`USD: $${Number(item.usd).toLocaleString("en-US")}`);
+      lines.push(
+        `USD: $${Number(item.usd).toLocaleString("en-US")}`
+      );
     }
+
     if (Number.isFinite(Number(item.usd_24h_change))) {
-      lines.push(`24-hour change: ${Number(item.usd_24h_change).toFixed(2)}%`);
+      lines.push(
+        `24-hour change: ${Number(item.usd_24h_change).toFixed(2)}%`
+      );
     }
+
     return lines.join("\n");
   }
 
@@ -303,7 +358,10 @@ function detectStockSymbol(message) {
     if (text.includes(name)) return symbol;
   }
 
-  const explicit = String(message || "").match(/\b([A-Z]{2,12})\.(BSE|NSE)\b/i);
+  const explicit = String(message || "").match(
+    /\b([A-Z]{2,12})\.(BSE|NSE)\b/i
+  );
+
   if (!explicit) return null;
 
   return `${explicit[1].toUpperCase()}.${explicit[2].toUpperCase()}`;
@@ -311,6 +369,7 @@ function detectStockSymbol(message) {
 
 function detectStockRequest(message) {
   const text = String(message || "").toLowerCase();
+
   const asksStock =
     /\b(stock|share|shares|price|chart|history|historical|rsi|support|resistance)\b/.test(
       text
@@ -321,15 +380,19 @@ function detectStockRequest(message) {
 
 function calculateRSI(closes, period = 14) {
   if (!Array.isArray(closes)) return null;
+
   const values = closes.map(Number);
 
-  if (values.length <= period || !values.every(Number.isFinite)) return null;
+  if (values.length <= period || !values.every(Number.isFinite)) {
+    return null;
+  }
 
   let gains = 0;
   let losses = 0;
 
   for (let i = 1; i <= period; i++) {
     const change = values[i] - values[i - 1];
+
     if (change > 0) gains += change;
     if (change < 0) losses -= change;
   }
@@ -339,19 +402,29 @@ function calculateRSI(closes, period = 14) {
 
   for (let i = period + 1; i < values.length; i++) {
     const change = values[i] - values[i - 1];
+
     averageGain =
       (averageGain * (period - 1) + Math.max(change, 0)) / period;
+
     averageLoss =
       (averageLoss * (period - 1) + Math.max(-change, 0)) / period;
   }
 
-  if (averageLoss === 0) return averageGain === 0 ? 50 : 100;
+  if (averageLoss === 0) {
+    return averageGain === 0 ? 50 : 100;
+  }
+
   const rs = averageGain / averageLoss;
   return 100 - 100 / (1 + rs);
-}async function getDailyStockData(symbol) {
+      }// Alpha Vantage - Historical Stock Data
+
+async function getDailyStockData(symbol) {
   const apiKey = process.env.ALPHA_VANTAGE_API_KEY;
+
   if (!apiKey) {
-    throw new Error("Historical stock data is not configured on the server.");
+    throw new Error(
+      "Historical stock data is not configured on the server."
+    );
   }
 
   const url =
@@ -362,17 +435,25 @@ function calculateRSI(closes, period = 14) {
     `&apikey=${encodeURIComponent(apiKey)}`;
 
   const data = await fetchJSON(url);
+
   if (data.Note || data.Information) {
     throw new Error("Stock data limit reached. Try later.");
   }
+
   if (data["Error Message"]) {
-    throw new Error("Stock symbol was not accepted by the data provider.");
+    throw new Error(
+      "Stock symbol was not accepted by the data provider."
+    );
   }
 
   const series = data["Time Series (Daily)"];
-  if (!series) throw new Error("Stock history is unavailable.");
+
+  if (!series) {
+    throw new Error("Stock history is unavailable.");
+  }
 
   const dates = Object.keys(series).sort().reverse();
+
   const rows = dates.map((date) => ({
     date,
     close: Number(series[date]["4. close"]),
@@ -381,25 +462,42 @@ function calculateRSI(closes, period = 14) {
     volume: Number(series[date]["5. volume"]),
   }));
 
-  const validRows = rows.filter((row) => Number.isFinite(row.close));
-  if (!validRows.length) throw new Error("No valid stock data returned.");
+  const validRows = rows.filter((row) =>
+    Number.isFinite(row.close)
+  );
+
+  if (!validRows.length) {
+    throw new Error("No valid stock data returned.");
+  }
 
   const latest = validRows[0];
   const previous = validRows[1] || null;
-  const closes = validRows.map((row) => row.close).reverse();
+
+  const closes = validRows
+    .map((row) => row.close)
+    .reverse();
+
   const recent = validRows.slice(0, 14);
-  const lows = recent.map((row) => row.low).filter(Number.isFinite);
-  const highs = recent.map((row) => row.high).filter(Number.isFinite);
+
+  const lows = recent
+    .map((row) => row.low)
+    .filter(Number.isFinite);
+
+  const highs = recent
+    .map((row) => row.high)
+    .filter(Number.isFinite);
 
   return {
     symbol,
     date: latest.date,
     close: latest.close,
     previousClose: previous?.close ?? null,
+
     dailyChangePercent:
       previous && previous.close !== 0
         ? ((latest.close - previous.close) / previous.close) * 100
         : null,
+
     rsi14: calculateRSI(closes, 14),
     support: lows.length ? Math.min(...lows) : null,
     resistance: highs.length ? Math.max(...highs) : null,
@@ -409,9 +507,14 @@ function calculateRSI(closes, period = 14) {
 
 function buildStockReply(report) {
   const money = (value) =>
-    Number.isFinite(Number(value)) ? Number(value).toFixed(2) : "Unavailable";
+    Number.isFinite(Number(value))
+      ? Number(value).toFixed(2)
+      : "Unavailable";
+
   const percent = (value) =>
-    Number.isFinite(Number(value)) ? `${Number(value).toFixed(2)}%` : "Unavailable";
+    Number.isFinite(Number(value))
+      ? `${Number(value).toFixed(2)}%`
+      : "Unavailable";
 
   return [
     `Stock: ${report.symbol}`,
@@ -429,19 +532,31 @@ function buildStockReply(report) {
 }
 
 // Nifty / Bank Nifty
+
 function detectIndexRequest(message) {
   const text = String(message || "").toLowerCase();
 
-  if (text.includes("bank nifty") || text.includes("banknifty")) {
-    return { symbol: "^NSEBANK", name: "BANK NIFTY" };
+  if (
+    text.includes("bank nifty") ||
+    text.includes("banknifty")
+  ) {
+    return {
+      symbol: "^NSEBANK",
+      name: "BANK NIFTY",
+    };
   }
+
   if (
     text.includes("nifty 50") ||
     text.includes("nifty50") ||
     /\bnifty\b/.test(text)
   ) {
-    return { symbol: "^NSEI", name: "NIFTY 50" };
+    return {
+      symbol: "^NSEI",
+      name: "NIFTY 50",
+    };
   }
+
   return null;
 }
 
@@ -459,25 +574,36 @@ async function getIndexData(index) {
   }
 
   const closes = result.indicators?.quote?.[0]?.close;
-  if (!closes) throw new Error("Index closing values are unavailable.");
+
+  if (!closes) {
+    throw new Error("Index closing values are unavailable.");
+  }
 
   const rows = result.timestamp
     .map((timestamp, i) => ({
-      date: new Date(timestamp * 1000).toISOString().slice(0, 10),
+      date: new Date(timestamp * 1000)
+        .toISOString()
+        .slice(0, 10),
       close: Number(closes[i]),
     }))
     .filter((row) => Number.isFinite(row.close));
 
-  if (!rows.length) throw new Error("No valid index values returned.");
+  if (!rows.length) {
+    throw new Error("No valid index values returned.");
+  }
 
   const latest = rows[rows.length - 1];
-  const previous = rows.length > 1 ? rows[rows.length - 2] : null;
+  const previous =
+    rows.length > 1
+      ? rows[rows.length - 2]
+      : null;
 
   return {
     symbol: index.name,
     date: latest.date,
     close: latest.close,
     previousClose: previous?.close ?? null,
+
     dailyChangePercent:
       previous && previous.close !== 0
         ? ((latest.close - previous.close) / previous.close) * 100
@@ -487,7 +613,9 @@ async function getIndexData(index) {
 
 function buildIndexReply(report) {
   const percent = (value) =>
-    Number.isFinite(Number(value)) ? `${Number(value).toFixed(2)}%` : "Unavailable";
+    Number.isFinite(Number(value))
+      ? `${Number(value).toFixed(2)}%`
+      : "Unavailable";
 
   return [
     `Index: ${report.symbol}`,
@@ -500,7 +628,8 @@ function buildIndexReply(report) {
   ].join("\n");
 }
 
-// Company news - Google News RSS
+// Company News - Google News RSS
+
 function decodeXML(value = "") {
   return String(value)
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
@@ -508,22 +637,30 @@ function decodeXML(value = "") {
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&apos;/g, "'");
+    .replace(/&#39;|&apos;/g, "'");
 }
 
 function getXMLTag(block, tag) {
-  const escapedTag = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const escapedTag = tag.replace(
+    /[.*+?^${}()|[\]\\]/g,
+    "\\$&"
+  );
+
   const regex = new RegExp(
     `<${escapedTag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${escapedTag}>`,
     "i"
   );
+
   const match = String(block).match(regex);
-  return match ? decodeXML(match[1].trim()) : "";
+
+  return match
+    ? decodeXML(match[1].trim())
+    : "";
 }
 
 function asksForCompanyNews(message) {
   const text = String(message || "").toLowerCase();
+
   return (
     /\b(news|latest news|company update|headlines|announcement)\b/.test(text) ||
     /समाचार|खबर|ताज़ा खबर/.test(text)
@@ -532,21 +669,26 @@ function asksForCompanyNews(message) {
 
 function detectNewsCompany(message) {
   const text = String(message || "").toLowerCase();
+
   for (const name of Object.keys(COMPANY_ALIASES)) {
     if (text.includes(name)) return name;
   }
+
   return null;
 }
 
 async function getGoogleNewsRSS(company) {
   const query = encodeURIComponent(`${company} when:7d`);
+
   const url =
     "https://news.google.com/rss/search?q=" +
     query +
     "&hl=en-IN&gl=IN&ceid=IN:en";
 
   const xml = await fetchText(url);
-  const blocks = xml.match(/<item(?:\s[^>]*)?>[\s\S]*?<\/item>/gi) || [];
+
+  const blocks =
+    xml.match(/<item(?:\s[^>]*)?>[\s\S]*?<\/item>/gi) || [];
 
   return blocks
     .slice(0, 5)
@@ -575,9 +717,11 @@ function buildNewsReply(company, news) {
   ].join("\n");
 }
 
-// Safe self-upgrade planning only: no file edits or deployments.
+// Safe Self-Upgrade Planning Only
+
 function asksForSelfUpgrade(message) {
   const text = String(message || "").toLowerCase();
+
   return (
     /\b(self[- ]?upgrade|auto[- ]?upgrade|self[- ]?improve|upgrade yourself|improve yourself)\b/.test(text) ||
     /खुद को अपग्रेड|अपने आप अपग्रेड|खुद में सुधार|नया फीचर जोड़/.test(text)
@@ -598,17 +742,27 @@ function buildUpgradePrompt(message) {
   ].join("\n");
 }
 
-// Main API handler
+// Main API Handler
+
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return sendJSON(res, 405, { error: "Method not allowed. Use POST." });
+
+    return sendJSON(res, 405, {
+      error: "Method not allowed. Use POST.",
+    });
   }
 
   try {
     const body = getRequestBody(req);
-    const message = String(body.message || body.prompt || "").trim();
-    const hasImage = Boolean(body.image || body.imageBase64 || body.imageData);
+
+    const message = String(
+      body.message || body.prompt || ""
+    ).trim();
+
+    const hasImage = Boolean(
+      body.image || body.imageBase64 || body.imageData
+    );
 
     if (!message && !hasImage) {
       return sendJSON(res, 400, {
@@ -616,50 +770,63 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    const history = sanitizeHistory(body.history || body.messages || []);
+    const history = sanitizeHistory(
+      body.history || body.messages || []
+    );
 
+    // Crypto prices
     if (asksForCrypto(message)) {
       try {
         const data = await getCryptoPrices();
+
         return sendJSON(res, 200, {
           reply: buildCryptoReply(data),
           memorySupported: false,
         });
       } catch (error) {
         console.error("Crypto error:", error.message);
+
         return sendJSON(res, 502, {
           error: "Crypto price service is temporarily unavailable.",
         });
       }
     }
 
+    // Nifty / Bank Nifty
     const index = detectIndexRequest(message);
+
     if (index) {
       try {
         const report = await getIndexData(index);
+
         return sendJSON(res, 200, {
           reply: buildIndexReply(report),
           memorySupported: false,
         });
       } catch (error) {
         console.error("Index error:", error.message);
+
         return sendJSON(res, 502, {
           error: "Index data is temporarily unavailable.",
         });
       }
     }
 
+    // Company News
     if (asksForCompanyNews(message)) {
       const company = detectNewsCompany(message);
+
       if (company) {
         try {
           const news = await getGoogleNewsRSS(company);
+
           return sendJSON(res, 200, {
             reply: buildNewsReply(company, news),
             memorySupported: false,
           });
         } catch (error) {
           console.error("News error:", error.message);
+
           return sendJSON(res, 502, {
             error: "Company news is temporarily unavailable.",
           });
@@ -667,37 +834,53 @@ module.exports = async function handler(req, res) {
       }
     }
 
+    // Historical Stocks
     const stockSymbol = detectStockRequest(message);
+
     if (stockSymbol) {
       try {
         const report = await getDailyStockData(stockSymbol);
+
         return sendJSON(res, 200, {
           reply: buildStockReply(report),
           memorySupported: false,
         });
       } catch (error) {
         console.error("Stock error:", error.message);
+
         return sendJSON(res, 502, {
           error: error.message || "Stock data is unavailable.",
         });
       }
     }
 
+    // Image Upload
     const imageParts = getImageParts(body);
+
+    // Self-Upgrade Planning
     const geminiPrompt = asksForSelfUpgrade(message)
       ? buildUpgradePrompt(message)
       : message || "Please describe the uploaded image.";
 
-    const reply = await askGemini(geminiPrompt, imageParts, history);
+    // Gemini
+    const reply = await askGemini(
+      geminiPrompt,
+      imageParts,
+      history
+    );
 
     return sendJSON(res, 200, {
       reply,
       memorySupported: false,
     });
+
   } catch (error) {
     console.error("JARVIS API error:", error);
 
-    const errorMessage = String(error?.message || "Unknown server error");
+    const errorMessage = String(
+      error?.message || "Unknown server error"
+    );
+
     const isBadRequest =
       /image format|image is empty|too large|invalid JSON|invalid image|unsupported image/i.test(
         errorMessage
@@ -706,7 +889,7 @@ module.exports = async function handler(req, res) {
     return sendJSON(res, isBadRequest ? 400 : 500, {
       error: isBadRequest
         ? errorMessage
-        : "JARVIS AI server error. Please check Render Logs.",
+        : "JARVIS AI server error. Please check server logs.",
     });
   }
 };
