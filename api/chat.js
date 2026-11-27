@@ -248,7 +248,10 @@ async function askGemini(prompt, imageParts = [], history = []) {
     ...imageParts,
   ];
 
-  const client = new GoogleGenAI({ apiKey });
+  const client = new GoogleGenAI({
+  apiKey,
+  apiVersion: "v1beta"
+});
 
   const interaction = await client.interactions.create({
     model: MODEL_NAME,
